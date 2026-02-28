@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useLayoutEffect } from 'react';
 import { GridItem as GridItemComponent } from './GridItem';
 import type { GridItem } from '@/types/grid';
 import type { ResizeDirection } from '@/hooks/useGridEngine';
@@ -8,7 +8,7 @@ import type { ResizeDirection } from '@/hooks/useGridEngine';
 interface GridCanvasProps {
   layout: GridItem[];
   columnCount: number;
-  rowHeight: number;
+  rowHeight: number; // engine's row height state (may differ from cellSize)
   selectedItemId: string | null;
   onSelectItem: (itemId: string | null) => void;
   onAddItem: (pixelX: number, pixelY: number, containerRect: DOMRect) => void;
@@ -26,7 +26,7 @@ interface GridCanvasProps {
 export function GridCanvas({
   layout,
   columnCount,
-  rowHeight,
+  rowHeight, // engine row height (passed through to items)
   selectedItemId,
   onSelectItem,
   onAddItem,
@@ -35,6 +35,21 @@ export function GridCanvas({
   onRemoveItem,
 }: GridCanvasProps) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const [cellSize, setCellSize] = useState(40); // square cell size in pixels
+
+  // Calculate square cell size based on container width
+  useLayoutEffect(() => {
+    const updateCellSize = () => {
+      if (!gridRef.current) return;
+      const width = gridRef.current.offsetWidth;
+      const colWidth = width / columnCount;
+      setCellSize(colWidth);
+    };
+
+    updateCellSize();
+    window.addEventListener('resize', updateCellSize);
+    return () => window.removeEventListener('resize', updateCellSize);
+  }, [columnCount]);
 
   const handleGridClick = (e: React.MouseEvent) => {
     // clear selection if clicking on empty grid
@@ -60,13 +75,12 @@ export function GridCanvas({
     onAddItem(e.clientX, e.clientY, rect);
   };
 
-  // Single grid background pattern (columns and rows aligned with grid)
-  const gridColWidth = `calc(100% / ${columnCount})`;
+  // Single grid background pattern with square cells
   const backgroundStyle = {
     backgroundImage: 
       'linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px),' +
       'linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)',
-    backgroundSize: `${gridColWidth} ${rowHeight}px`,
+    backgroundSize: `${cellSize}px ${cellSize}px`,
     backgroundPosition: '0 0',
   };
 
@@ -79,7 +93,7 @@ export function GridCanvas({
       style={{
         display: 'grid',
         gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-        gridAutoRows: `${rowHeight}px`,
+        gridAutoRows: `${cellSize}px`,
         gap: '0',
         width: '100%',
         minHeight: '100%',
@@ -98,6 +112,7 @@ export function GridCanvas({
           onMove={onMoveItem}
           containerRef={gridRef}
           columnCount={columnCount}
+          cellSize={cellSize}
           rowHeight={rowHeight}
         />
       ))}

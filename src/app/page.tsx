@@ -46,7 +46,7 @@ export default function Home() {
       </div>
 
       {/* Right Sidebar Properties */}
-      <Sidebar selectedItem={selectedItem} columnCount={columnCount} onResizeItem={resizeItem} />
+      <Sidebar selectedItem={selectedItem} columnCount={columnCount} onMoveItem={moveItem} onResizeItem={resizeItem} onRemoveItem={removeItem} />
     </div>
   );
 }

@@ -3,8 +3,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GridItem } from '@/types/grid';
 
-const DEFAULT_ITEM_WIDTH = 6; // columns
-const DEFAULT_ITEM_HEIGHT = 4; // rows
+const DEFAULT_ITEM_WIDTH = 3; // columns
+const DEFAULT_ITEM_HEIGHT = 3; // rows
 const COLUMN_COUNT = 125;
 
 // breakpoints used only to adjust row height
@@ -362,6 +362,7 @@ export function useGridEngine() {
   // expose utilities
   const removeItem = useCallback((itemId: string) => {
     setLayout((current) => current.filter((i) => i.id !== itemId));
+    setSelectedItemId((curr) => (curr === itemId ? null : curr));
   }, []);
 
   const selectItem = useCallback((itemId: string | null) => {

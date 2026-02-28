@@ -7,6 +7,7 @@ import { ResizeDirection } from '@/hooks/useGridEngine';
 interface SidebarProps {
   selectedItem: GridItem | null;
   columnCount: number;
+  onMoveItem: (itemId: string, col: number, row: number) => void;
   onResizeItem: (
     itemId: string,
     direction: ResizeDirection,
@@ -14,24 +15,34 @@ interface SidebarProps {
     deltaY: number,
     containerRect: DOMRect
   ) => void;
+  onRemoveItem: (itemId: string) => void;
 }
 
-export function Sidebar({ selectedItem, columnCount, onResizeItem }: SidebarProps) {
+export function Sidebar({ selectedItem, columnCount, onMoveItem, onResizeItem, onRemoveItem }: SidebarProps) {
   const [colStart, setColStart] = useState('');
   const [colSpan, setColSpan] = useState('');
+  const [rowStart, setRowStart] = useState('');
   const [rowSpan, setRowSpan] = useState('');
+  const [colEnd, setColEnd] = useState('');
+  const [rowEnd, setRowEnd] = useState('');
 
   useEffect(() => {
     if (selectedItem) {
       setColStart(String(selectedItem.colStart + 1)); // 1-indexed for user
+      setRowStart(String(selectedItem.rowStart + 1)); // 1-indexed for user
       const span = selectedItem.colEnd - selectedItem.colStart;
       setColSpan(String(span));
       const rspan = selectedItem.rowEnd - selectedItem.rowStart;
       setRowSpan(String(rspan));
+      setColEnd(String(selectedItem.colEnd)); // 1-indexed boundary
+      setRowEnd(String(selectedItem.rowEnd)); // 1-indexed boundary
     } else {
       setColStart('');
       setColSpan('');
       setRowSpan('');
+      setRowStart('');
+      setColEnd('');
+      setRowEnd('');
     }
   }, [selectedItem]);
 
@@ -67,6 +78,32 @@ export function Sidebar({ selectedItem, columnCount, onResizeItem }: SidebarProp
     }
   };
 
+  const handleColStartChange = (newVal: number) => {
+    if (!selectedItem || newVal < 1 || newVal > columnCount) return;
+    const newColStart = newVal - 1; // Convert to 0-indexed
+    const delta = newColStart - selectedItem.colStart;
+    if (delta !== 0) {
+      onMoveItem(selectedItem.id, newColStart, selectedItem.rowStart);
+      setColStart(String(newVal));
+      // Update colEnd accordingly to maintain span
+      const newColEnd = newColStart + (selectedItem.colEnd - selectedItem.colStart);
+      setColEnd(String(newColEnd));
+    }
+  };
+
+  const handleRowStartChange = (newVal: number) => {
+    if (!selectedItem || newVal < 1) return;
+    const newRowStart = newVal - 1; // Convert to 0-indexed
+    const delta = newRowStart - selectedItem.rowStart;
+    if (delta !== 0) {
+      onMoveItem(selectedItem.id, selectedItem.colStart, newRowStart);
+      setRowStart(String(newVal));
+      // Update rowEnd accordingly to maintain span
+      const newRowEnd = newRowStart + (selectedItem.rowEnd - selectedItem.rowStart);
+      setRowEnd(String(newRowEnd));
+    }
+  };
+
   if (!selectedItem) {
     return (
       <div className="w-72 bg-white border-l border-gray-200 p-6 flex flex-col items-center justify-center text-center">
@@ -85,25 +122,60 @@ export function Sidebar({ selectedItem, columnCount, onResizeItem }: SidebarProp
       <h2 className="text-lg font-bold text-gray-800 mb-4">Properties</h2>
 
       <div className="space-y-6">
-        {/* Display coordinates */}
+        {/* Editable Position Controls */}
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Position</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-gray-600 font-medium">Col Start</label>
+              <label htmlFor="colStart" className="text-xs text-gray-600 font-medium">Col Start</label>
+              <input
+                id="colStart"
+                type="number"
+                min="1"
+                max={columnCount}
+                value={colStart}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setColStart(val);
+                  if (val) {
+                    handleColStartChange(parseInt(val, 10));
+                  }
+                }}
+                className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="rowStart" className="text-xs text-gray-600 font-medium">Row Start</label>
+              <input
+                id="rowStart"
+                type="number"
+                min="1"
+                value={rowStart}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRowStart(val);
+                  if (val) {
+                    handleRowStartChange(parseInt(val, 10));
+                  }
+                }}
+                className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 font-medium">Col End</label>
               <input
                 type="text"
                 readOnly
-                value={selectedItem.colStart + 1}
+                value={colEnd}
                 className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm bg-gray-50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-600 font-medium">Row Start</label>
+              <label className="text-xs text-gray-600 font-medium">Row End</label>
               <input
                 type="text"
                 readOnly
-                value={selectedItem.rowStart + 1}
+                value={rowEnd}
                 className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm bg-gray-50"
               />
             </div>
@@ -187,6 +259,16 @@ export function Sidebar({ selectedItem, columnCount, onResizeItem }: SidebarProp
           <p className="text-xs text-gray-600">
             <span className="font-medium">Item ID:</span> {selectedItem.id}
           </p>
+        </div>
+
+        {/* Delete action */}
+        <div className="mt-4">
+          <button
+            onClick={() => onRemoveItem(selectedItem.id)}
+            className="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded text-sm font-medium"
+          >
+            Delete Item
+          </button>
         </div>
       </div>
     </div>
