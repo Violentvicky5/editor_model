@@ -30,7 +30,7 @@ export type ResizeDirection =
 
 export function useGridEngine() {
   const [layout, setLayout] = useState<GridItem[]>([]);
-  const [rowHeight, setRowHeight] = useState<number>(40);
+  const [rowHeight, setRowHeight] = useState<number>(10);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   const columnCount = COLUMN_COUNT;
