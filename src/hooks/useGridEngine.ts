@@ -3,9 +3,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GridItem } from '@/types/grid';
 
-const DEFAULT_ITEM_WIDTH = 3; // columns
-const DEFAULT_ITEM_HEIGHT = 3; // rows
+const DEFAULT_ITEM_WIDTH = 1; // columns
+const DEFAULT_ITEM_HEIGHT = 1; // rows
 const COLUMN_COUNT = 125;
+const MAX_NESTING_DEPTH = 10;
 
 // breakpoints used only to adjust row height
 function getRowHeight(width: number): number {
@@ -28,10 +29,117 @@ export type ResizeDirection =
   | 'se'
   | 'sw';
 
+// ============================================================================
+// Tree Navigation Helpers (for nested grid support)
+// ============================================================================
+
+/**
+ * Find an item by path (array of IDs from root to target)
+ */
+function findItemByPath(layout: GridItem[], path: string[]): GridItem | null {
+  if (path.length === 0) return null;
+  
+  let current: GridItem | null = null;
+  for (let i = 0; i < path.length; i++) {
+    const id = path[i];
+    if (i === 0) {
+      current = layout.find((item) => item.id === id) || null;
+    } else {
+      current = (current?.children || []).find((item) => item.id === id) || null;
+    }
+    if (!current) return null;
+  }
+  
+  return current;
+}
+
+/**
+ * Find container (parent's children array) and the item at given path
+ */
+function findContainerAtPath(
+  layout: GridItem[],
+  path: string[]
+): { container: GridItem[] | null; item: GridItem | null; parentItem: GridItem | null } {
+  if (path.length === 0) {
+    return { container: null, item: null, parentItem: null };
+  }
+
+  const itemId = path[path.length - 1];
+  const parentPath = path.slice(0, -1);
+
+  if (parentPath.length === 0) {
+    // Item is at root level
+    const item = layout.find((i) => i.id === itemId) || null;
+    return { container: layout, item, parentItem: null };
+  }
+
+  // Find parent
+  const parentItem = findItemByPath(layout, parentPath);
+  if (!parentItem) {
+    return { container: null, item: null, parentItem: null };
+  }
+
+  const container = parentItem.children || null;
+  const item = container ? container.find((i) => i.id === itemId) || null : null;
+
+  return { container, item, parentItem };
+}
+
+/**
+ * Update an item at a given path, returning new layout
+ */
+function updateItemAtPath(
+  layout: GridItem[],
+  path: string[],
+  updater: (item: GridItem) => GridItem
+): GridItem[] {
+  if (path.length === 0) return layout;
+
+  const itemId = path[0];
+  const restPath = path.slice(1);
+
+  return layout.map((item) => {
+    if (item.id !== itemId) return item;
+
+    if (restPath.length === 0) {
+      return updater(item);
+    }
+
+    return {
+      ...item,
+      children: item.children ? updateItemAtPath(item.children, restPath, updater) : [],
+    };
+  });
+}
+
+/**
+ * Recursively delete an item (and all descendants) at a path
+ */
+function deleteAtPath(layout: GridItem[], path: string[]): GridItem[] {
+  if (path.length === 0) return layout;
+
+  const itemId = path[0];
+  const restPath = path.slice(1);
+
+  if (restPath.length === 0) {
+    // Delete at this level
+    return layout.filter((i) => i.id !== itemId);
+  }
+
+  // Recurse into children
+  return layout.map((item) => {
+    if (item.id !== itemId) return item;
+    return {
+      ...item,
+      children: item.children ? deleteAtPath(item.children, restPath) : undefined,
+    };
+  });
+}
+
 export function useGridEngine() {
   const [layout, setLayout] = useState<GridItem[]>([]);
   const [rowHeight, setRowHeight] = useState<number>(10);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedItemPath, setSelectedItemPath] = useState<string[]>([]);
 
   const columnCount = COLUMN_COUNT;
 
@@ -55,7 +163,168 @@ export function useGridEngine() {
     );
   };
 
-  // Axis-aware collision resolvers
+  /**
+   * Resolve collisions within a specific container (scoped collision detection)
+   */
+  const resolveCollisionsInContainer = (
+    container: GridItem[],
+    movedItemId: string,
+    direction?: ResizeDirection
+  ): GridItem[] => {
+    const updated = container.map((i) => ({ ...i }));
+    const movedItem = updated.find((i) => i.id === movedItemId);
+    if (!movedItem) return updated;
+
+    // Determine which resolver to use based on direction
+    if (direction && (direction.includes('e') || direction.includes('w'))) {
+      const horiz = resolveHorizontalResizeInContainer(movedItem, updated);
+      if (horiz === null) {
+        // Fallback: wrap and resolve vertically
+        const wrapped = { ...movedItem };
+        const newW = wrapped.colEnd - wrapped.colStart;
+        wrapped.colStart = 0;
+        wrapped.colEnd = newW;
+        wrapped.rowStart = movedItem.rowEnd;
+        wrapped.rowEnd = wrapped.rowStart + (movedItem.rowEnd - movedItem.rowStart);
+        const baseline = updated.map((c) => (c.id === movedItemId ? wrapped : c));
+        return resolveVerticalResizeInContainer(wrapped, baseline);
+      }
+
+      if (direction.includes('n') || direction.includes('s')) {
+        const updatedItem = horiz.find((h) => h.id === movedItemId) || movedItem;
+        return resolveVerticalResizeInContainer(updatedItem, horiz);
+      }
+      return horiz;
+    }
+
+    // Default: vertical resolve
+    return resolveVerticalResizeInContainer(movedItem, updated);
+  };
+
+  // Resolve vertical collisions only for items that overlap in column span.
+  const resolveVerticalResizeInContainer = (
+    changed: GridItem,
+    currentContainer: GridItem[]
+  ): GridItem[] => {
+    const updated = currentContainer.map((i) => ({ ...i }));
+
+    // only consider items that overlap in columns
+    const candidates = updated.filter(
+      (i) => i.id !== changed.id && i.colStart < changed.colEnd && i.colEnd > changed.colStart
+    );
+
+    const queue: GridItem[] = [changed];
+
+    while (queue.length) {
+      const cur = queue.shift()!;
+
+      for (const other of candidates) {
+        if (other.id === cur.id) continue;
+        if (itemsOverlap(cur, other)) {
+          const h = other.rowEnd - other.rowStart;
+          if (other.rowStart < cur.rowEnd) {
+            other.rowStart = cur.rowEnd;
+            other.rowEnd = other.rowStart + h;
+            queue.push(other);
+          }
+        }
+      }
+    }
+
+    return updated.map((u) => {
+      const found = candidates.find((c) => c.id === u.id);
+      return found ? found : u;
+    });
+  };
+
+  // Resolve horizontal expansion (east). Attempt to shift conflicting items right; wrap to next row if needed.
+  const resolveHorizontalResizeInContainer = (
+    changed: GridItem,
+    currentContainer: GridItem[]
+  ): GridItem[] | null => {
+    const updated = currentContainer.map((i) => ({ ...i }));
+
+    // items that overlap in rows with the changed item (same row band)
+    const rowCandidates = updated.filter(
+      (i) => i.id !== changed.id && i.rowStart < changed.rowEnd && i.rowEnd > changed.rowStart
+    );
+
+    // we'll attempt to shift items right deterministically using a queue
+    const queue: GridItem[] = [changed];
+    const maxIterations = 10000;
+    let iter = 0;
+
+    while (queue.length) {
+      if (++iter > maxIterations) return null;
+      const cur = queue.shift()!;
+
+      for (const other of rowCandidates) {
+        if (other.id === cur.id) continue;
+        if (itemsOverlap(cur, other)) {
+          const otherWidth = other.colEnd - other.colStart;
+          const shift = cur.colEnd - other.colStart;
+          let newColStart = other.colStart + Math.max(0, shift);
+
+          if (newColStart + otherWidth <= columnCount) {
+            other.colStart = newColStart;
+            other.colEnd = other.colStart + otherWidth;
+            queue.push(other);
+            continue;
+          }
+
+          // otherwise wrap to next row
+          let targetRowStart = cur.rowEnd;
+          const originalHeight = other.rowEnd - other.rowStart;
+          other.colStart = 0;
+          other.colEnd = other.colStart + otherWidth;
+          other.rowStart = targetRowStart;
+          other.rowEnd = other.rowStart + originalHeight;
+
+          const temp = resolveVerticalResizeInContainer(other, updated);
+          for (const t of temp) {
+            const idx = updated.findIndex((u) => u.id === t.id);
+            if (idx >= 0) updated[idx] = { ...t };
+          }
+
+          queue.push(other);
+        }
+      }
+    }
+
+    return updated;
+  };
+
+  // Resolve drag: moving an item to a new position should push down only column-overlapping items
+  const resolveDragInContainer = (
+    moved: GridItem,
+    currentContainer: GridItem[]
+  ): GridItem[] => {
+    const updated = currentContainer.map((i) => ({ ...i }));
+    const candidates = updated.filter(
+      (i) => i.id !== moved.id && i.colStart < moved.colEnd && i.colEnd > moved.colStart
+    );
+
+    const queue: GridItem[] = [moved];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      for (const other of candidates) {
+        if (other.id === cur.id) continue;
+        if (itemsOverlap(cur, other)) {
+          const h = other.rowEnd - other.rowStart;
+          other.rowStart = cur.rowEnd;
+          other.rowEnd = other.rowStart + h;
+          queue.push(other);
+        }
+      }
+    }
+
+    return updated.map((u) => {
+      const found = candidates.find((c) => c.id === u.id);
+      return found ? found : u;
+    });
+  };
+
+  // Axis-aware collision resolvers (OLD, for backward compat if needed)
 
   // Resolve vertical collisions only for items that overlap in column span.
   const resolveVerticalResize = (
@@ -73,13 +342,15 @@ export function useGridEngine() {
     while (queue.length) {
       const cur = queue.shift()!;
 
+
+//check all the overlapping items here      
       for (const other of candidates) {
         if (other.id === cur.id) continue;
         if (itemsOverlap(cur, other)) {
           const h = other.rowEnd - other.rowStart;
           // push the other directly below cur
           if (other.rowStart < cur.rowEnd) {
-            other.rowStart = cur.rowEnd;
+            other.rowStart = cur.rowEnd; 
             other.rowEnd = other.rowStart + h;
             // when we push this item, it may collide with other column-overlapping items
             queue.push(other);
@@ -88,7 +359,7 @@ export function useGridEngine() {
       }
     }
 
-    // replace originals in updated
+    // replace originals in updated - only affected candidates are changed and updated
     return updated.map((u) => {
       const found = candidates.find((c) => c.id === u.id);
       return found ? found : u;
@@ -146,7 +417,8 @@ export function useGridEngine() {
             if (idx >= 0) updated[idx] = { ...t };
           }
 
-          // continue processing as this moved item may cause more horizontal shifts within its row band later
+          // continue processing as this moved item may cause more horizontal shifts within
+          //  its row band later
           queue.push(other);
         }
       }
@@ -198,9 +470,9 @@ export function useGridEngine() {
     return { colStart, rowStart };
   };
 
-  // add new item from palette drop
+  // add new item from palette drop with path support
   const addItem = useCallback(
-    (pixelX: number, pixelY: number, containerRect: DOMRect) => {
+    (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[] = []) => {
       const { colStart, rowStart } = pixelToGrid(pixelX, pixelY, containerRect);
       const colEnd = Math.min(colStart + DEFAULT_ITEM_WIDTH, columnCount);
       const rowEnd = rowStart + DEFAULT_ITEM_HEIGHT;
@@ -214,19 +486,29 @@ export function useGridEngine() {
       };
 
       setLayout((current) => {
-        // place and push down only items that share columns
-        return resolveVerticalResize(newItem, [...current, newItem]);
+        if (targetPath.length === 0) {
+          // Add to root level
+          const result = resolveVerticalResize(newItem, [...current, newItem]);
+          return result;
+        }
+
+        // Add to nested container at the exact path
+        return updateItemAtPath(current, targetPath, (parent) => {
+          const container = parent.children || [];
+          const resolved = resolveVerticalResizeInContainer(newItem, [...container, newItem]);
+          return { ...parent, children: resolved };
+        });
       });
     },
     [columnCount, rowHeight]
   );
 
-  // move an existing item
+  // move an existing item with path support
   const moveItem = useCallback(
-    (itemId: string, newColStart: number, newRowStart: number) => {
+    (itemPath: string[], newColStart: number, newRowStart: number) => {
       setLayout((current) => {
-        const item = current.find((i) => i.id === itemId);
-        if (!item) return current;
+        const { container, item } = findContainerAtPath(current, itemPath);
+        if (!container || !item) return current;
 
         const width = item.colEnd - item.colStart;
         const height = item.rowEnd - item.rowStart;
@@ -244,25 +526,35 @@ export function useGridEngine() {
           rowEnd: newRowStart + height,
         };
 
-        const updated = current.map((i) => (i.id === itemId ? moved : { ...i }));
-        return resolveDrag(moved, updated);
+        const updated = container.map((i) => (i.id === itemPath[itemPath.length - 1] ? moved : { ...i }));
+        const resolved = resolveDragInContainer(moved, updated);
+
+        // Update at container level
+        if (itemPath.length === 1) {
+          return resolved;
+        }
+
+        return updateItemAtPath(current, itemPath.slice(0, -1), (parent) => ({
+          ...parent,
+          children: resolved,
+        }));
       });
     },
     [columnCount]
   );
 
-  // resize existing item with direction (transactional, axis-aware)
+  // resize existing item with direction (transactional, axis-aware, path-based)
   const resizeItem = useCallback(
     (
-      itemId: string,
+      itemPath: string[],
       direction: ResizeDirection,
       deltaX: number,
       deltaY: number,
       containerRect: DOMRect
     ) => {
       setLayout((current) => {
-        const item = current.find((i) => i.id === itemId);
-        if (!item) return current;
+        const { container, item } = findContainerAtPath(current, itemPath);
+        if (!container || !item) return current;
 
         const colWidth = containerRect.width / columnCount;
         const colDelta = Math.round(deltaX / colWidth);
@@ -311,32 +603,20 @@ export function useGridEngine() {
         const resized: GridItem = { ...item, colStart, colEnd, rowStart, rowEnd };
 
         // baseline layout with resized item applied
-        const baseline = current.map((c) => (c.id === itemId ? resized : { ...c }));
+        const updated = container.map((c) => (c.id === itemPath[itemPath.length - 1] ? resized : { ...c }));
 
-        // If horizontal component exists, attempt horizontal resolution first
-        if (direction.includes('e') || direction === 'w' || direction === 'ne' || direction === 'nw' || direction === 'se' || direction === 'sw') {
-          const horiz = resolveHorizontalResize(resized, baseline);
-          if (horiz === null) {
-            // try wrap-to-next-row strategy
-            const wrapped = { ...resized };
-            const newW = wrapped.colEnd - wrapped.colStart;
-            wrapped.colStart = 0;
-            wrapped.colEnd = newW;
-            wrapped.rowStart = item.rowEnd;
-            wrapped.rowEnd = wrapped.rowStart + height;
-            const v = resolveVerticalResize(wrapped, baseline.map((c) => (c.id === itemId ? wrapped : c)));
-            return v;
-          }
-          // if vertical component also exists (diagonal), apply vertical resolver on top
-          if (direction.includes('n') || direction.includes('s')) {
-            const updatedItem = horiz.find((h) => h.id === itemId) || resized;
-            return resolveVerticalResize(updatedItem, horiz);
-          }
-          return horiz;
+        // Resolve collisions in container with direction awareness
+        const resolved = resolveCollisionsInContainer(updated, itemPath[itemPath.length - 1], direction);
+
+        // Update at container level
+        if (itemPath.length === 1) {
+          return resolved;
         }
 
-        // pure vertical resize
-        return resolveVerticalResize(resized, baseline);
+        return updateItemAtPath(current, itemPath.slice(0, -1), (parent) => ({
+          ...parent,
+          children: resolved,
+        }));
       });
     },
     [columnCount, rowHeight]
@@ -345,40 +625,73 @@ export function useGridEngine() {
   // ensure no item exceeds column count after any operation
   const reflow = useCallback(() => {
     setLayout((current) => {
-      return current.map((item) => {
-        let { colStart, colEnd } = item;
-        if (colStart >= columnCount) {
-          colStart = 0;
-          colEnd = columnCount;
-        }
-        if (colEnd > columnCount) {
-          colEnd = columnCount;
-        }
-        return { ...item, colStart, colEnd };
-      });
+      const reflowContainer = (container: GridItem[]): GridItem[] => {
+        return container.map((item) => {
+          let { colStart, colEnd } = item;
+          if (colStart >= columnCount) {
+            colStart = 0;
+            colEnd = columnCount;
+          }
+          if (colEnd > columnCount) {
+            colEnd = columnCount;
+          }
+          const result = { ...item, colStart, colEnd };
+          if (result.children) {
+            result.children = reflowContainer(result.children);
+          }
+          return result;
+        });
+      };
+      return reflowContainer(current);
     });
   }, []);
 
   // expose utilities
-  const removeItem = useCallback((itemId: string) => {
-    setLayout((current) => current.filter((i) => i.id !== itemId));
-    setSelectedItemId((curr) => (curr === itemId ? null : curr));
+  const removeItem = useCallback((itemPath: string[]) => {
+    setLayout((current) => deleteAtPath(current, itemPath));
+    // Clear selection if removed item was selected
+    if (itemPath.length > 0) {
+      setSelectedItemPath((curr) => {
+        if (curr.length === itemPath.length && curr.every((id, i) => id === itemPath[i])) {
+          return [];
+        }
+        return curr;
+      });
+    }
   }, []);
 
-  const selectItem = useCallback((itemId: string | null) => {
-    setSelectedItemId(itemId);
+  const selectItem = useCallback((path: string[] | null) => {
+    setSelectedItemPath(path || []);
   }, []);
+
+  // Initialize children grid for nested containers
+  const initializeChildrenGrid = useCallback((itemPath: string[]) => {
+    setLayout((current) => {
+      return updateItemAtPath(current, itemPath, (item) => ({
+        ...item,
+        children: [],
+      }));
+    });
+  }, []);
+
+  // Get selected item from path
+  const getSelectedItem = useCallback((): GridItem | null => {
+    if (selectedItemPath.length === 0) return null;
+    return findItemByPath(layout, selectedItemPath);
+  }, [layout, selectedItemPath]);
 
   return {
     layout,
     columnCount,
     rowHeight,
-    selectedItemId,
+    selectedItemPath,
+    selectedItem: getSelectedItem(),
     addItem,
     moveItem,
     resizeItem,
     removeItem,
     pixelToGrid,
     selectItem,
+    initializeChildrenGrid,
   };
 }

@@ -1,40 +1,58 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { GridItem as GridItemType } from '@/types/grid';
 import { ResizeDirection } from '@/hooks/useGridEngine';
 
 interface GridItemProps {
   item: GridItemType;
-  isSelected: boolean;
-  onSelect: (itemId: string) => void;
+  itemPath: string[];           // Path to this item
+  selectedItemPath: string[];   // Global selected path (for comparison)
+  isSelected?: boolean;         // Deprecated, computed from paths
+  onSelect: (path: string[]) => void;
+  onAddItem: (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[]) => void;
   onResize: (
-    itemId: string,
+    path: string[],
     direction: ResizeDirection,
     deltaX: number,
     deltaY: number,
     containerRect: DOMRect
   ) => void;
-  onMove: (itemId: string, col: number, row: number) => void;
-  onRemove: (itemId: string) => void;
+  onMove: (path: string[], col: number, row: number) => void;
+  onRemove: (path: string[]) => void;
+  onInitializeChildren: (path: string[]) => void;
   containerRef: React.RefObject<HTMLDivElement | null>;
   columnCount: number;
   cellSize: number;
-  rowHeight: number; // engine row height used for delta->rows conversion
+  rowHeight: number;
+  depth: number;                // Nesting depth
+  maxDepth?: number;            // Max nesting depth (default 10)
 }
 
 export function GridItem({
   item,
-  isSelected,
+  itemPath,
+  selectedItemPath,
   onSelect,
+  onAddItem,
   onResize,
   onMove,
   onRemove,
+  onInitializeChildren,
   containerRef,
   columnCount,
   cellSize,
   rowHeight,
+  depth,
+  maxDepth = 10,
 }: GridItemProps) {
+  // debug render tracing
+  // eslint-disable-next-line no-console
+  console.log('GridItem render', item.id);
+
+  // Determine if this item is selected by comparing paths
+  const isSelected = itemPath.length === selectedItemPath.length && 
+                     itemPath.every((id, i) => id === selectedItemPath[i]);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDir, setResizeDir] = useState<ResizeDirection | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -59,7 +77,6 @@ export function GridItem({
   // accumulators for controlled snapping
   const deltaAccumulatorXRef = useRef(0);
   const deltaAccumulatorYRef = useRef(0);
-
   const dragAccumulatorXRef = useRef(0);
   const dragAccumulatorYRef = useRef(0);
 
@@ -76,6 +93,7 @@ export function GridItem({
       if (isResizing && resizeStateRef.current.direction && containerRef.current) {
         const dir = resizeStateRef.current.direction;
         const rect = containerRef.current.getBoundingClientRect();
+        const localCellSize = rect.width / columnCount;
 
         // compute delta relative to initial pointer down
         const deltaX = e.clientX - (resizeStateRef.current.lastX ?? resizeStateRef.current.startX);
@@ -91,22 +109,22 @@ export function GridItem({
 
         // horizontal snapping (unchanged)
         if (['e', 'w', 'ne', 'nw', 'se', 'sw'].includes(dir)) {
-          while (Math.abs(deltaAccumulatorXRef.current) >= cellSize) {
+          while (Math.abs(deltaAccumulatorXRef.current) >= localCellSize) {
             const step = Math.sign(deltaAccumulatorXRef.current);
-            const px = step * cellSize;
-            onResize(item.id, dir, px, 0, rect);
-            deltaAccumulatorXRef.current -= step * cellSize;
+            const px = step * localCellSize;
+            onResize(itemPath, dir, px, 0, rect);
+            deltaAccumulatorXRef.current -= step * localCellSize;
           }
         }
 
         // vertical snapping using engine rowHeight for proper conversion
         if (['n', 's', 'ne', 'nw', 'se', 'sw'].includes(dir)) {
-          while (Math.abs(deltaAccumulatorYRef.current) >= cellSize) {
+          while (Math.abs(deltaAccumulatorYRef.current) >= localCellSize) {
             const step = Math.sign(deltaAccumulatorYRef.current);
             // compute pixel delta based on engine rowHeight so engine increments rows correctly
             const py = step * rowHeight;
-            onResize(item.id, dir, 0, py, rect);
-            deltaAccumulatorYRef.current -= step * cellSize;
+            onResize(itemPath, dir, 0, py, rect);
+            deltaAccumulatorYRef.current -= step * localCellSize;
           }
         }
 
@@ -115,6 +133,7 @@ export function GridItem({
 
       if (isDragging && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
+        const localCellSize = rect.width / columnCount;
 
         const movementX = e.clientX - (dragStateRef.current.lastX ?? dragStateRef.current.startX);
         const movementY = e.clientY - (dragStateRef.current.lastY ?? dragStateRef.current.startY);
@@ -125,21 +144,24 @@ export function GridItem({
         dragAccumulatorYRef.current += movementY;
 
         // horizontal snap steps
-        while (Math.abs(dragAccumulatorXRef.current) >= cellSize) {
+        while (Math.abs(dragAccumulatorXRef.current) >= localCellSize) {
           const step = Math.sign(dragAccumulatorXRef.current);
-          const newCol = Math.max(0, initialRectRef.current.colStart + step);
-          onMove(item.id, newCol, initialRectRef.current.rowStart);
+          const width = initialRectRef.current.colEnd - initialRectRef.current.colStart;
+          const maxCol = columnCount - width;
+          let newCol = initialRectRef.current.colStart + step;
+          newCol = Math.max(0, Math.min(newCol, maxCol));
+          onMove(itemPath, newCol, initialRectRef.current.rowStart);
           initialRectRef.current.colStart = newCol;
-          dragAccumulatorXRef.current -= step * cellSize;
+          dragAccumulatorXRef.current -= step * localCellSize;
         }
 
         // vertical snap steps
-        while (Math.abs(dragAccumulatorYRef.current) >= cellSize) {
+        while (Math.abs(dragAccumulatorYRef.current) >= localCellSize) {
           const step = Math.sign(dragAccumulatorYRef.current);
           const newRow = Math.max(0, initialRectRef.current.rowStart + step);
-          onMove(item.id, initialRectRef.current.colStart, newRow);
+          onMove(itemPath, initialRectRef.current.colStart, newRow);
           initialRectRef.current.rowStart = newRow;
-          dragAccumulatorYRef.current -= step * cellSize;
+          dragAccumulatorYRef.current -= step * localCellSize;
         }
       }
     });
@@ -166,7 +188,7 @@ export function GridItem({
         document.removeEventListener('pointerup', handlePointerUp);
       };
     }
-  }, [isResizing, isDragging, item.id, onResize, onMove, cellSize, containerRef]);
+  }, [isResizing, isDragging, itemPath, onResize, onMove, cellSize, containerRef]);
 
   const startResize = (dir: ResizeDirection) => (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -195,15 +217,16 @@ export function GridItem({
 
   const handleDragStart = (e: React.PointerEvent) => {
     if (isResizing) return;
-    onSelect(item.id);
+    onSelect(itemPath);
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const offsetX = e.clientX - (rect.left + item.colStart * cellSize);
-    const offsetY = e.clientY - (rect.top + item.rowStart * cellSize);
+    const localCellSize = rect.width / columnCount;
+    const offsetX = e.clientX - (rect.left + item.colStart * localCellSize);
+    const offsetY = e.clientY - (rect.top + item.rowStart * localCellSize);
 
     // snapshot initial rect and reset accumulators
     initialRectRef.current = { colStart: item.colStart, colEnd: item.colEnd, rowStart: item.rowStart, rowEnd: item.rowEnd };
@@ -225,22 +248,94 @@ export function GridItem({
   const width = item.colEnd - item.colStart;
   const height = item.rowEnd - item.rowStart;
 
+  // Calculate nested grid cell size
+  const itemPixelWidth = width * cellSize;
+  const nestedCellSize = itemPixelWidth / columnCount;
+
+  // ref for this item's grid container (used for nested children)
+  const nestedRef = useRef<HTMLDivElement>(null);
+
   return (
     <div
-      onClick={() => onSelect(item.id)}
+      onClick={(e) => { e.stopPropagation(); onSelect(itemPath); }}
       onPointerDown={handleDragStart}
       style={{
         gridColumn: `${item.colStart + 1} / span ${width}`,
         gridRow: `${item.rowStart + 1} / span ${height}`,
       }}
-      className={`relative border-2 rounded-lg p-4 transition-all touch-action-none ${
+      className={`relative border-2 rounded-lg p-4 transition-all touch-action-none overflow-hidden ${
         isDragging ? 'cursor-grabbing' : 'cursor-grab'
       } ${
         isSelected
-          ? 'border-blue-500 bg-blue-50 shadow-md'
+          ? 'border-blue-500 bg-blue-50 shadow-md z-20'
           : 'border-gray-300 bg-white shadow-sm hover:shadow-md hover:border-gray-400'
-      } ${isDragging ? 'shadow-lg z-10' : 'z-0'}`}
+      } ${isDragging ? 'shadow-lg z-30' : 'z-0'}`}
     >
+      {/* Nested Grid (if children exist) */}
+      {item.children && depth < maxDepth && (
+        <div
+          ref={nestedRef}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+            gridAutoRows: `${nestedCellSize}px`,
+            gap: '0',
+            width: '100%',
+            height: 'calc(100% - 2rem)',
+            backgroundImage:
+              'linear-gradient(to right, rgba(0,0,0,0.02) 1px, transparent 1px),' +
+              'linear-gradient(to bottom, rgba(0,0,0,0.02) 1px, transparent 1px)',
+            backgroundSize: `${nestedCellSize}px ${nestedCellSize}px`,
+            backgroundColor: 'rgba(100, 150, 200, 0.05)',
+            border: '1px dashed rgba(100, 150, 200, 0.3)',
+            borderRadius: '4px',
+            marginTop: '8px',
+            position: 'relative',
+          }}
+          className="pointer-events-auto"
+          onClick={(e) => {
+            if (e.currentTarget !== e.target) return;
+            e.stopPropagation();
+            onSelect([]); // clear selection only when clicking background
+          }}
+          onDragOver={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const data = e.dataTransfer.getData('text/plain');
+            if (data !== 'palette-item') return;
+            const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+            onAddItem(e.clientX, e.clientY, rect, itemPath);
+          }}
+        >
+          {item.children.map((child) => (
+            <GridItem
+              key={child.id}
+              item={child}
+              itemPath={[...itemPath, child.id]}
+              selectedItemPath={selectedItemPath}
+              onSelect={onSelect}
+              onAddItem={onAddItem}
+              onResize={onResize}
+              onMove={onMove}
+              onRemove={onRemove}
+              onInitializeChildren={onInitializeChildren}
+              containerRef={nestedRef}
+              columnCount={columnCount}
+              cellSize={nestedCellSize}
+              rowHeight={rowHeight}
+              depth={depth + 1}
+              maxDepth={maxDepth}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Item Label & Controls */}
       <div className="absolute inset-0 p-4 flex flex-col pointer-events-none">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-600">Item {item.id.slice(-6)}</span>
@@ -248,14 +343,13 @@ export function GridItem({
             onPointerDown={(e: React.PointerEvent) => {
               e.stopPropagation();
               e.preventDefault();
-              // try to release any pointer capture on the container to ensure click works
               try {
                 containerRef.current?.releasePointerCapture?.(e.pointerId);
               } catch (_) {}
               try {
                 (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
               } catch (_) {}
-              onRemove(item.id);
+              onRemove(itemPath);
             }}
             className="text-xs text-red-500 hover:text-red-700 font-medium pointer-events-auto"
           >
@@ -269,10 +363,24 @@ export function GridItem({
         </div>
       </div>
 
-      {/* Resize handles - only show if selected */}
-      {isSelected && (
+      {/* "Add Inside" Button (only when selected and no children yet, depth limit respected) */}
+      {isSelected && !item.children && depth < maxDepth && (
+        <button
+          onPointerDown={(e: React.PointerEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onInitializeChildren(itemPath);
+          }}
+          className="absolute top-1 right-1 text-xs px-2 py-1 rounded bg-blue-500 text-white shadow hover:bg-blue-600 transition-colors pointer-events-auto"
+        >
+          Add Inside
+        </button>
+      )}
+
+      {/* Resize handles - only show if selected and depth < maxDepth */}
+      {isSelected && depth < maxDepth && (
         <>
-          {/* Corner handles - 10x10px with bigger hitbox via pseudo-positioning */}
+          {/* Corner handles */}
           <div
             onPointerDown={startResize('nw')}
             className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nwse-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
@@ -294,7 +402,7 @@ export function GridItem({
             title="Resize SE"
           />
 
-          {/* Edge handles - 12px hitbox for easier interaction */}
+          {/* Edge handles */}
           <div
             onPointerDown={startResize('n')}
             className="absolute -top-1.5 left-1/2 -translate-x-1/2 h-3 w-8 cursor-n-resize hover:bg-blue-500/20 pointer-events-auto touch-action-none"
@@ -319,4 +427,9 @@ export function GridItem({
       )}
     </div>
   );
+
 }
+
+export default GridItem;
+
+

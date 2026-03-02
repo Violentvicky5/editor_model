@@ -6,9 +6,19 @@ import { Sidebar } from '@/components/Sidebar';
 import { useGridEngine } from '@/hooks/useGridEngine';
 
 export default function Home() {
-  const { layout, columnCount, rowHeight, selectedItemId, addItem, moveItem, resizeItem, removeItem, selectItem } = useGridEngine();
-
-  const selectedItem = layout.find((item) => item.id === selectedItemId) || null;
+  const {
+    layout,
+    columnCount,
+    rowHeight,
+    selectedItemPath,
+    selectedItem,
+    addItem,
+    moveItem,
+    resizeItem,
+    removeItem,
+    selectItem,
+    initializeChildrenGrid,
+  } = useGridEngine();
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -23,7 +33,7 @@ export default function Home() {
             <div>
               <h1 className="text-2xl font-bold text-gray-800">EDITOR</h1>
               <p className="text-sm text-gray-600 mt-1">
-                Columns: <span className="font-semibold">{columnCount}</span> | Row height: <span className="font-semibold">{rowHeight}px</span>
+                Columns: <span className="font-semibold">{columnCount}</span>
               </p>
             </div>
           </div>
@@ -35,18 +45,37 @@ export default function Home() {
             layout={layout}
             columnCount={columnCount}
             rowHeight={rowHeight}
-            selectedItemId={selectedItemId}
+            selectedItemPath={selectedItemPath}
             onSelectItem={selectItem}
             onAddItem={addItem}
             onMoveItem={moveItem}
             onResizeItem={resizeItem}
             onRemoveItem={removeItem}
+            onInitializeChildren={initializeChildrenGrid}
           />
         </div>
       </div>
 
       {/* Right Sidebar Properties */}
-      <Sidebar selectedItem={selectedItem} columnCount={columnCount} onMoveItem={moveItem} onResizeItem={resizeItem} onRemoveItem={removeItem} />
+      <Sidebar
+        selectedItem={selectedItem}
+        columnCount={columnCount}
+        onMoveItem={(itemId, col, row) => {
+          if (selectedItemPath.length > 0) {
+            moveItem(selectedItemPath, col, row);
+          }
+        }}
+        onResizeItem={(itemId, direction, deltaX, deltaY, containerRect) => {
+          if (selectedItemPath.length > 0) {
+            resizeItem(selectedItemPath, direction, deltaX, deltaY, containerRect);
+          }
+        }}
+        onRemoveItem={(itemId) => {
+          if (selectedItemPath.length > 0) {
+            removeItem(selectedItemPath);
+          }
+        }}
+      />
     </div>
   );
 }

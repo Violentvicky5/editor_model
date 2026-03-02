@@ -8,31 +8,33 @@ import type { ResizeDirection } from '@/hooks/useGridEngine';
 interface GridCanvasProps {
   layout: GridItem[];
   columnCount: number;
-  rowHeight: number; // engine's row height state (may differ from cellSize)
-  selectedItemId: string | null;
-  onSelectItem: (itemId: string | null) => void;
-  onAddItem: (pixelX: number, pixelY: number, containerRect: DOMRect) => void;
-  onMoveItem: (itemId: string, col: number, row: number) => void;
+  rowHeight: number;
+  selectedItemPath: string[];
+  onSelectItem: (path: string[]) => void;
+  onAddItem: (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[]) => void;
+  onMoveItem: (path: string[], col: number, row: number) => void;
   onResizeItem: (
-    itemId: string,
+    path: string[],
     direction: ResizeDirection,
     deltaX: number,
     deltaY: number,
     containerRect: DOMRect
   ) => void;
-  onRemoveItem: (itemId: string) => void;
+  onRemoveItem: (path: string[]) => void;
+  onInitializeChildren: (path: string[]) => void;
 }
 
 export function GridCanvas({
   layout,
   columnCount,
-  rowHeight, // engine row height (passed through to items)
-  selectedItemId,
+  rowHeight,
+  selectedItemPath,
   onSelectItem,
   onAddItem,
   onMoveItem,
   onResizeItem,
   onRemoveItem,
+  onInitializeChildren,
 }: GridCanvasProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [cellSize, setCellSize] = useState(40); // square cell size in pixels
@@ -54,7 +56,7 @@ export function GridCanvas({
   const handleGridClick = (e: React.MouseEvent) => {
     // clear selection if clicking on empty grid
     if (e.target === gridRef.current) {
-      onSelectItem(null);
+      onSelectItem([]);
     }
   };
 
@@ -64,15 +66,16 @@ export function GridCanvas({
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
+    // ignore drops from nested grids: event should originate on this container
+    if (e.currentTarget !== e.target) return;
 
-    if (!gridRef.current) return;
+    e.preventDefault();
 
     const data = e.dataTransfer.getData('text/plain');
     if (data !== 'palette-item') return;
 
-    const rect = gridRef.current.getBoundingClientRect();
-    onAddItem(e.clientX, e.clientY, rect);
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    onAddItem(e.clientX, e.clientY, rect, []);
   };
 
   // Single grid background pattern with square cells
@@ -105,15 +108,19 @@ export function GridCanvas({
         <GridItemComponent
           key={item.id}
           item={item}
-          isSelected={selectedItemId === item.id}
+          itemPath={[item.id]}
+          selectedItemPath={selectedItemPath}
           onSelect={onSelectItem}
+          onAddItem={onAddItem}
           onResize={onResizeItem}
           onRemove={onRemoveItem}
           onMove={onMoveItem}
+          onInitializeChildren={onInitializeChildren}
           containerRef={gridRef}
           columnCount={columnCount}
           cellSize={cellSize}
           rowHeight={rowHeight}
+          depth={0}
         />
       ))}
     </div>
