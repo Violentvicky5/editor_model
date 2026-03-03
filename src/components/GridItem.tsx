@@ -132,7 +132,7 @@ export function GridItem({
       }
 
       if (isDragging && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
+        const rect = containerRef.current.getBoundingClientRect();    // for getting values relative to container and cell size for snapping
         const localCellSize = rect.width / columnCount;
 
         const movementX = e.clientX - (dragStateRef.current.lastX ?? dragStateRef.current.startX);
@@ -143,7 +143,7 @@ export function GridItem({
         dragAccumulatorXRef.current += movementX;
         dragAccumulatorYRef.current += movementY;
 
-        // horizontal snap steps
+        // horizontal snap steps -abs(abosolute) values ensure it works in all directions
         while (Math.abs(dragAccumulatorXRef.current) >= localCellSize) {
           const step = Math.sign(dragAccumulatorXRef.current);
           const width = initialRectRef.current.colEnd - initialRectRef.current.colStart;
@@ -371,7 +371,7 @@ export function GridItem({
             e.preventDefault();
             onInitializeChildren(itemPath);
           }}
-          className="absolute top-1 right-1 text-xs px-2 py-1 rounded bg-blue-500 text-white shadow hover:bg-blue-600 transition-colors pointer-events-auto"
+          className="absolute bottom-2 right-2 text-xs px-2 py-1 rounded bg-blue-500 text-white shadow hover:bg-blue-600 transition-colors pointer-events-auto"
         >
           Add Inside
         </button>
@@ -433,3 +433,23 @@ export function GridItem({
 export default GridItem;
 
 
+/**
+ * GridItem Component
+ * ------------------
+ * Represents a single grid item (supports deep nesting).
+ *
+ * Responsibilities:
+ *
+ * - Renders an item positioned using CSS Grid (colStart, colEnd, rowStart, rowEnd).
+ * - Handles selection using path-based comparison.
+ * - Supports drag-to-move with grid snapping.
+ * - Supports resize (8-directional: n, s, e, w, ne, nw, se, sw).
+ * - Uses RAF batching and movement accumulators for smooth snapping.
+ * - Initializes nested grid when requested.
+ * - Renders nested GridCanvas-like grid inside itself if children exist.
+ * - Handles scoped drag-and-drop for adding child items.
+ * - Prevents event bubbling issues between nested containers.
+ *
+ * This component handles UI interaction logic only.
+ * Layout mutation and collision resolution are delegated to useGridEngine.
+ */

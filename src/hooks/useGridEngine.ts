@@ -36,21 +36,21 @@ export type ResizeDirection =
 /**
  * Find an item by path (array of IDs from root to target)
  */
-function findItemByPath(layout: GridItem[], path: string[]): GridItem | null {
-  if (path.length === 0) return null;
-  
-  let current: GridItem | null = null;
-  for (let i = 0; i < path.length; i++) {
-    const id = path[i];
-    if (i === 0) {
-      current = layout.find((item) => item.id === id) || null;
-    } else {
-      current = (current?.children || []).find((item) => item.id === id) || null;
-    }
-    if (!current) return null;
+function findItemByPath(
+  layout: GridItem[],
+  path: string[]
+): GridItem | null {
+  if (!path.length) return null;
+
+  let current = layout.find((item) => item.id === path[0]);
+
+  for (let i = 1; i < path.length && current; i++) {
+    current = current.children?.find(
+      (item) => item.id === path[i]
+    );
   }
-  
-  return current;
+
+  return current ?? null;
 }
 
 /**
@@ -695,3 +695,31 @@ export function useGridEngine() {
     initializeChildrenGrid,
   };
 }
+
+/**
+ * useGridEngine Hook
+ * ------------------
+ * Core layout engine for the nested grid system.
+ *
+ * Responsibilities:
+ *
+ * - Maintains full layout tree state.
+ * - Maintains selected item path.
+ * - Converts pixel coordinates to grid positions.
+ * - Adds new items (root or nested).
+ * - Moves items with collision resolution.
+ * - Resizes items with axis-aware collision handling.
+ * - Resolves vertical and horizontal overlaps deterministically.
+ * - Supports nested containers using path-based tree navigation.
+ * - Handles item deletion recursively.
+ * - Ensures grid bounds and reflow constraints.
+ *
+ * Includes:
+ * - Tree navigation helpers (findItemByPath, updateItemAtPath, deleteAtPath).
+ * - Container-scoped collision resolution.
+ * - Axis-aware resizing logic.
+ * - Drag resolution logic.
+ *
+ * This hook contains all business logic and layout mutation rules.
+ * UI components remain stateless and delegate actions here.
+ */

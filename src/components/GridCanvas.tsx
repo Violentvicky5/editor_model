@@ -126,3 +126,19 @@ export function GridCanvas({
     </div>
   );
 }
+
+/**
+ * GridCanvas Component
+ * --------------------
+ * Root grid container responsible for:
+ *
+ * - Rendering the top-level grid layout using CSS Grid.
+ * - Calculating dynamic square cell size based on container width.
+ * - Rendering all root GridItem components.
+ * - Handling background click to clear selection.
+ * - Handling drag-over and drop events for adding new items from palette.
+ * - Converting drop position into grid coordinates via container rect.
+ *
+ * This component does NOT handle layout logic or collision resolution.
+ * It acts purely as the visual grid surface and event delegator.
+ */
