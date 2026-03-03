@@ -87,6 +87,25 @@ export function GridCanvas({
     backgroundPosition: '0 0',
   };
 
+  // If there are no items in this root layout, render a visible drop target
+  // so users can drag from the palette to create the first root item. This
+  // is intentionally minimal and uses the same handlers as the normal grid
+  // so behavior remains identical to when items exist.
+  if (!layout || layout.length === 0) {
+    return (
+      <div
+        ref={gridRef}
+        onClick={() => onSelectItem([])}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        style={{ width: '100%', minHeight: `${rowHeight * 20}px` }}
+        className="relative bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center"
+      >
+        <p className="text-center text-gray-400 mt-10">Drag items here</p>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={gridRef}
