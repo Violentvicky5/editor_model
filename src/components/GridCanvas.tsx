@@ -21,7 +21,7 @@ interface GridCanvasProps {
     containerRect: DOMRect
   ) => void;
   onRemoveItem: (path: string[]) => void;
-  onInitializeChildren: (path: string[]) => void;
+ 
 }
 
 export function GridCanvas({
@@ -34,24 +34,12 @@ export function GridCanvas({
   onMoveItem,
   onResizeItem,
   onRemoveItem,
-  onInitializeChildren,
+ 
 }: GridCanvasProps) {
   const gridRef = useRef<HTMLDivElement>(null);
-  const [cellSize, setCellSize] = useState(40); // square cell size in pixels
+  const [cellSize, setCellSize] = useState(10); // square cell size in pixels
 
-  // Calculate square cell size based on container width
-  useLayoutEffect(() => {
-    const updateCellSize = () => {
-      if (!gridRef.current) return;
-      const width = gridRef.current.offsetWidth;
-      const colWidth = width / columnCount;
-      setCellSize(colWidth);
-    };
-
-    updateCellSize();
-    window.addEventListener('resize', updateCellSize);
-    return () => window.removeEventListener('resize', updateCellSize);
-  }, [columnCount]);
+  
 
   const handleGridClick = (e: React.MouseEvent) => {
     // clear selection if clicking on empty grid
@@ -98,8 +86,8 @@ export function GridCanvas({
         onClick={() => onSelectItem([])}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        style={{ width: '100%', minHeight: `${rowHeight * 20}px` }}
-        className="relative bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center"
+        style={{ width: '100%', minHeight: `${rowHeight * 75}px` }}
+        className=" bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center"
       >
         <p className="text-center text-gray-400 mt-10">Drag items here</p>
       </div>
@@ -107,21 +95,21 @@ export function GridCanvas({
   }
 
   return (
-    <div
+    <div className='bg-gray-100   ' 
       ref={gridRef}
       onClick={handleGridClick}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-        gridAutoRows: `${cellSize}px`,
+        gridTemplateColumns: `repeat(${columnCount}, 1fr)`,  //controls square cells by making each column fraction of total width
+        gridAutoRows: `${cellSize}px`,  // makes rows same size as columns for square cells
         gap: '0',
         width: '100%',
         minHeight: '100%',
         ...backgroundStyle,
       }}
-      className="relative bg-gray-50"
+     
     >
       {layout.map((item) => (
         <GridItemComponent
@@ -134,7 +122,7 @@ export function GridCanvas({
           onResize={onResizeItem}
           onRemove={onRemoveItem}
           onMove={onMoveItem}
-          onInitializeChildren={onInitializeChildren}
+      
           containerRef={gridRef}
           columnCount={columnCount}
           cellSize={cellSize}

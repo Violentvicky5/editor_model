@@ -5,14 +5,15 @@ import { Palette } from '@/components/Palette';
 import { GridCanvas } from '@/components/GridCanvas';
 import { Sidebar } from '@/components/Sidebar';
 import { useGridEngine } from '@/hooks/useGridEngine';
-
+import Icon from '@mdi/react';
+import { mdiMonitor, mdiCellphone } from '@mdi/js';
 export default function Home() {
   type ViewMode = 'desktop' | 'mobile';
   const [viewMode, setViewMode] = useState<ViewMode>('desktop');
 
   // Two independent engines (separate layout state)
-  const desktopEngine = useGridEngine();
-  const mobileEngine = useGridEngine();
+  const desktopEngine = useGridEngine(125);
+  const mobileEngine = useGridEngine(40);
 
   const {
     layout: dLayout,
@@ -25,7 +26,7 @@ export default function Home() {
     resizeItem: dResizeItem,
     removeItem: dRemoveItem,
     selectItem: dSelectItem,
-    initializeChildrenGrid: dInitializeChildrenGrid,
+  
   } = desktopEngine;
 
   const {
@@ -39,10 +40,11 @@ export default function Home() {
     resizeItem: mResizeItem,
     removeItem: mRemoveItem,
     selectItem: mSelectItem,
-    initializeChildrenGrid: mInitializeChildrenGrid,
+  
   } = mobileEngine;
 
-  const activeColumnCount = viewMode === 'desktop' ? dColumnCount : 40;
+  const mColumnCount = mobileEngine.columnCount;
+  const activeColumnCount = viewMode === 'desktop' ? dColumnCount : mColumnCount;
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -55,26 +57,35 @@ export default function Home() {
         <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">EDITOR</h1>
+              <h1 className="text-[14px] font-bold text-gray-800">EDITOR</h1>
               <p className="text-sm text-gray-600 mt-1">
                 Columns: <span className="font-semibold">{activeColumnCount}</span>
               </p>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('desktop')}
-                className={`px-3 py-1 rounded ${viewMode === 'desktop' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              >
-                Desktop
-              </button>
-              <button
-                onClick={() => setViewMode('mobile')}
-                className={`px-3 py-1 rounded ${viewMode === 'mobile' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              >
-                Mobile
-              </button>
-            </div>
+          <div className="flex gap-3 items-center">
+  <button
+    onClick={() => setViewMode("desktop")}
+    className={`p-2 rounded ${
+      viewMode === "desktop"
+        ? "bg-gray-500 text-white "
+        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+    }`}
+  >
+    <Icon path={mdiMonitor} size={1} />
+  </button>
+
+  <button
+    onClick={() => setViewMode("mobile")}
+    className={`p-2 rounded ${
+      viewMode === "mobile"
+        ? "bg-gray-500 text-white "
+        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+    }`}
+  >
+    <Icon path={mdiCellphone} size={1} />
+  </button>
+</div>
           </div>
         </div>
 
@@ -91,14 +102,14 @@ export default function Home() {
               onMoveItem={dMoveItem}
               onResizeItem={dResizeItem}
               onRemoveItem={dRemoveItem}
-              onInitializeChildren={dInitializeChildrenGrid}
+            
             />
           ) : (
             <div className="flex justify-center w-full">
-              <div className="w-[400px]  bg-white relative">
+              <div className="w-[400px] min-h-[600px] bg-white relative">
                 <GridCanvas
                   layout={mLayout}
-                  columnCount={40} // only override column count for mobile view
+                  columnCount={mColumnCount}
                   rowHeight={mRowHeight}
                   selectedItemPath={mSelectedItemPath}
                   onSelectItem={mSelectItem}
@@ -106,7 +117,7 @@ export default function Home() {
                   onMoveItem={mMoveItem}
                   onResizeItem={mResizeItem}
                   onRemoveItem={mRemoveItem}
-                  onInitializeChildren={mInitializeChildrenGrid}
+                  
                 />
               </div>
             </div>

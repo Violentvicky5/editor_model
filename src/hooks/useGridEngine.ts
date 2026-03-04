@@ -3,21 +3,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GridItem } from '@/types/grid';
 
-const DEFAULT_ITEM_WIDTH = 1; // columns
-const DEFAULT_ITEM_HEIGHT = 1; // rows
+const DEFAULT_ITEM_WIDTH = 10; // columns
+const DEFAULT_ITEM_HEIGHT = 10; // rows
 const COLUMN_COUNT = 125;
-const MAX_NESTING_DEPTH = 10;
 
-// breakpoints used only to adjust row height
-function getRowHeight(width: number): number {
-  if (width > 1140) return 40;
-  if (width > 768) return 36;
-  if (width > 525) return 32;
-  if (width > 375) return 28;
-  if (width > 345) return 24;
-  if (width > 320) return 20;
-  return 16;
-}
 
 export type ResizeDirection =
   | 'n'
@@ -85,6 +74,8 @@ function findContainerAtPath(
   return { container, item, parentItem };
 }
 
+// Recursively traverses layout tree using path array
+// Clones only the affected branch to maintain immutability
 /**
  * Update an item at a given path, returning new layout
  */
@@ -136,23 +127,14 @@ function deleteAtPath(layout: GridItem[], path: string[]): GridItem[] {
   });
 }
 
-export function useGridEngine() {
+export function useGridEngine(initialColumnCount: number = COLUMN_COUNT) {
   const [layout, setLayout] = useState<GridItem[]>([]);
   const [rowHeight, setRowHeight] = useState<number>(10);
   const [selectedItemPath, setSelectedItemPath] = useState<string[]>([]);
 
-  const columnCount = COLUMN_COUNT;
+  const columnCount = initialColumnCount;
 
-  // update rowHeight on resize
-  useEffect(() => {
-    const handleResize = () => {
-      setRowHeight(getRowHeight(window.innerWidth));
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
+ 
   // overlap detection
   const itemsOverlap = (a: GridItem, b: GridItem): boolean => {
     return (
@@ -163,6 +145,8 @@ export function useGridEngine() {
     );
   };
 
+  // Ensures items within the same container do not overlap
+  // Scoped to siblings only (container-based collision)
   /**
    * Resolve collisions within a specific container (scoped collision detection)
    */
@@ -197,8 +181,10 @@ export function useGridEngine() {
       return horiz;
     }
 
-    // Default: vertical resolve
-    return resolveVerticalResizeInContainer(movedItem, updated);
+
+
+// Default south behavior
+return resolveVerticalResizeInContainer(movedItem, updated);
   };
 
   // Resolve vertical collisions only for items that overlap in column span.
@@ -213,29 +199,49 @@ export function useGridEngine() {
       (i) => i.id !== changed.id && i.colStart < changed.colEnd && i.colEnd > changed.colStart
     );
 
-    const queue: GridItem[] = [changed];
+   const queue: GridItem[] = [changed];
 
-    while (queue.length) {
-      const cur = queue.shift()!;
+const maxIterations = 300;
+let iteration = 0;
 
-      for (const other of candidates) {
-        if (other.id === cur.id) continue;
-        if (itemsOverlap(cur, other)) {
-          const h = other.rowEnd - other.rowStart;
-          if (other.rowStart < cur.rowEnd) {
-            other.rowStart = cur.rowEnd;
-            other.rowEnd = other.rowStart + h;
-            queue.push(other);
-          }
-        }
+while (queue.length) {
+  if (++iteration > maxIterations) {
+    console.warn("Vertical resolve aborted (safety guard)");
+    break;
+  }
+
+  const cur = queue.shift()!;
+
+  for (const other of candidates) {
+    if (other.id === cur.id) continue;
+
+    if (itemsOverlap(cur, other)) {
+      const height = other.rowEnd - other.rowStart;
+
+      const newRowStart = cur.rowEnd;
+      const newRowEnd = newRowStart + height;
+
+      // Only update if position actually changes
+      if (
+        other.rowStart !== newRowStart ||
+        other.rowEnd !== newRowEnd
+      ) {
+        other.rowStart = newRowStart;
+        other.rowEnd = newRowEnd;
+
+        queue.push(other);
       }
     }
+  }
+}
 
     return updated.map((u) => {
       const found = candidates.find((c) => c.id === u.id);
       return found ? found : u;
     });
   };
+
+  
 
   // Resolve horizontal expansion (east). Attempt to shift conflicting items right; wrap to next row if needed.
   const resolveHorizontalResizeInContainer = (
@@ -251,11 +257,15 @@ export function useGridEngine() {
 
     // we'll attempt to shift items right deterministically using a queue
     const queue: GridItem[] = [changed];
-    const maxIterations = 10000;
-    let iter = 0;
+    const maxIterations = 500;
+let iter = 0;
+    
 
     while (queue.length) {
-      if (++iter > maxIterations) return null;
+     if (++iter > maxIterations) {
+    console.warn("Collision resolve aborted");
+    break;
+  }
       const cur = queue.shift()!;
 
       for (const other of rowCandidates) {
@@ -304,19 +314,40 @@ export function useGridEngine() {
       (i) => i.id !== moved.id && i.colStart < moved.colEnd && i.colEnd > moved.colStart
     );
 
-    const queue: GridItem[] = [moved];
-    while (queue.length) {
-      const cur = queue.shift()!;
-      for (const other of candidates) {
-        if (other.id === cur.id) continue;
-        if (itemsOverlap(cur, other)) {
-          const h = other.rowEnd - other.rowStart;
-          other.rowStart = cur.rowEnd;
-          other.rowEnd = other.rowStart + h;
-          queue.push(other);
-        }
+   const queue: GridItem[] = [moved];
+
+const maxIterations = 300;
+let iteration = 0;
+
+while (queue.length) {
+  if (++iteration > maxIterations) {
+    console.warn("Drag collision resolve aborted (safety guard)");
+    break;
+  }
+
+  const cur = queue.shift()!;
+
+  for (const other of candidates) {
+    if (other.id === cur.id) continue;
+
+    if (itemsOverlap(cur, other)) {
+      const height = other.rowEnd - other.rowStart;
+
+      const newRowStart = cur.rowEnd;
+      const newRowEnd = newRowStart + height;
+
+      // Only update if position actually changes
+      if (
+        other.rowStart !== newRowStart ||
+        other.rowEnd !== newRowEnd
+      ) {
+        other.rowStart = newRowStart;
+        other.rowEnd = newRowEnd;
+        queue.push(other);
       }
     }
+  }
+}
 
     return updated.map((u) => {
       const found = candidates.find((c) => c.id === u.id);
@@ -337,27 +368,44 @@ export function useGridEngine() {
     const candidates = updated.filter((i) => i.id !== changed.id && i.colStart < changed.colEnd && i.colEnd > changed.colStart);
 
     // Use a queue limited to column-overlapping candidates to preserve locality
-    const queue: GridItem[] = [changed];
+   // Use a queue limited to column-overlapping candidates to preserve locality
+const queue: GridItem[] = [changed];
 
-    while (queue.length) {
-      const cur = queue.shift()!;
+const maxIterations = 300;
+let iteration = 0;
 
+while (queue.length) {
+  if (++iteration > maxIterations) {
+    console.warn("Vertical resize resolve aborted (safety guard)");
+    break;
+  }
 
-//check all the overlapping items here      
-      for (const other of candidates) {
-        if (other.id === cur.id) continue;
-        if (itemsOverlap(cur, other)) {
-          const h = other.rowEnd - other.rowStart;
-          // push the other directly below cur
-          if (other.rowStart < cur.rowEnd) {
-            other.rowStart = cur.rowEnd; 
-            other.rowEnd = other.rowStart + h;
-            // when we push this item, it may collide with other column-overlapping items
-            queue.push(other);
-          }
-        }
+  const cur = queue.shift()!;
+
+  // check all overlapping items
+  for (const other of candidates) {
+    if (other.id === cur.id) continue;
+
+    if (itemsOverlap(cur, other)) {
+      const height = other.rowEnd - other.rowStart;
+
+      const newRowStart = cur.rowEnd;
+      const newRowEnd = newRowStart + height;
+
+      // Only update if position actually changes
+      if (
+        other.rowStart !== newRowStart ||
+        other.rowEnd !== newRowEnd
+      ) {
+        other.rowStart = newRowStart;
+        other.rowEnd = newRowEnd;
+
+        // This pushed item may now collide with others
+        queue.push(other);
       }
     }
+  }
+}
 
     // replace originals in updated - only affected candidates are changed and updated
     return updated.map((u) => {
@@ -366,93 +414,7 @@ export function useGridEngine() {
     });
   };
 
-  // Resolve horizontal expansion (east). Attempt to shift conflicting items right; wrap to next row if needed.
-  // Return null if unable to resolve (blocked).
-  const resolveHorizontalResize = (
-    changed: GridItem,
-    currentLayout: GridItem[]
-  ): GridItem[] | null => {
-    const updated = currentLayout.map((i) => ({ ...i }));
-
-    // items that overlap in rows with the changed item (same row band)
-    const rowCandidates = updated.filter((i) => i.id !== changed.id && i.rowStart < changed.rowEnd && i.rowEnd > changed.rowStart);
-
-    // we'll attempt to shift items right deterministically using a queue
-    const queue: GridItem[] = [changed];
-    const maxIterations = 10000;
-    let iter = 0;
-
-    while (queue.length) {
-      if (++iter > maxIterations) return null;
-      const cur = queue.shift()!;
-
-      for (const other of rowCandidates) {
-        if (other.id === cur.id) continue;
-        if (itemsOverlap(cur, other)) {
-          const otherWidth = other.colEnd - other.colStart;
-          const shift = cur.colEnd - other.colStart; // minimal shift to clear overlap
-          let newColStart = other.colStart + Math.max(0, shift);
-
-          // try to place to the right within bounds
-          if (newColStart + otherWidth <= columnCount) {
-            other.colStart = newColStart;
-            other.colEnd = other.colStart + otherWidth;
-            queue.push(other);
-            continue;
-          }
-
-          // otherwise wrap to next row (place at col 0, row = cur.rowEnd)
-          let targetRowStart = cur.rowEnd;
-          const originalHeight = other.rowEnd - other.rowStart;
-          other.colStart = 0;
-          other.colEnd = other.colStart + otherWidth;
-          other.rowStart = targetRowStart;
-          other.rowEnd = other.rowStart + originalHeight;
-
-          // After wrapping, we must ensure no overlap vertically in its column span; use vertical resolver for it
-          const temp = resolveVerticalResize(other, updated);
-          // merge temp results into updated
-          for (const t of temp) {
-            const idx = updated.findIndex((u) => u.id === t.id);
-            if (idx >= 0) updated[idx] = { ...t };
-          }
-
-          // continue processing as this moved item may cause more horizontal shifts within
-          //  its row band later
-          queue.push(other);
-        }
-      }
-    }
-
-    return updated;
-  };
-
-  // Resolve drag: moving an item to a new position should push down only column-overlapping items
-  const resolveDrag = (moved: GridItem, currentLayout: GridItem[]): GridItem[] => {
-    const updated = currentLayout.map((i) => ({ ...i }));
-    // find column-overlapping items
-    const candidates = updated.filter((i) => i.id !== moved.id && i.colStart < moved.colEnd && i.colEnd > moved.colStart);
-
-    const queue: GridItem[] = [moved];
-    while (queue.length) {
-      const cur = queue.shift()!;
-      for (const other of candidates) {
-        if (other.id === cur.id) continue;
-        if (itemsOverlap(cur, other)) {
-          const h = other.rowEnd - other.rowStart;
-          other.rowStart = cur.rowEnd;
-          other.rowEnd = other.rowStart + h;
-          queue.push(other);
-        }
-      }
-    }
-
-    // merge affected candidates back
-    return updated.map((u) => {
-      const found = candidates.find((c) => c.id === u.id);
-      return found ? found : u;
-    });
-  };
+  
 
   // convert pixels to grid coords (colStart, rowStart)
   const pixelToGrid = (
@@ -493,11 +455,17 @@ export function useGridEngine() {
         }
 
         // Add to nested container at the exact path
-        return updateItemAtPath(current, targetPath, (parent) => {
-          const container = parent.children || [];
-          const resolved = resolveVerticalResizeInContainer(newItem, [...container, newItem]);
-          return { ...parent, children: resolved };
-        });
+      return updateItemAtPath(current, targetPath, (parent) => {
+  const existingChildren = parent.children ?? [];
+
+  const updatedChildren = [...existingChildren, newItem];
+  const resolved = resolveVerticalResizeInContainer(newItem, updatedChildren);
+
+  return {
+    ...parent,
+    children: resolved,
+  };
+});
       });
     },
     [columnCount, rowHeight]
@@ -622,29 +590,7 @@ export function useGridEngine() {
     [columnCount, rowHeight]
   );
 
-  // ensure no item exceeds column count after any operation
-  const reflow = useCallback(() => {
-    setLayout((current) => {
-      const reflowContainer = (container: GridItem[]): GridItem[] => {
-        return container.map((item) => {
-          let { colStart, colEnd } = item;
-          if (colStart >= columnCount) {
-            colStart = 0;
-            colEnd = columnCount;
-          }
-          if (colEnd > columnCount) {
-            colEnd = columnCount;
-          }
-          const result = { ...item, colStart, colEnd };
-          if (result.children) {
-            result.children = reflowContainer(result.children);
-          }
-          return result;
-        });
-      };
-      return reflowContainer(current);
-    });
-  }, []);
+ 
 
   // expose utilities
   const removeItem = useCallback((itemPath: string[]) => {
@@ -665,14 +611,7 @@ export function useGridEngine() {
   }, []);
 
   // Initialize children grid for nested containers
-  const initializeChildrenGrid = useCallback((itemPath: string[]) => {
-    setLayout((current) => {
-      return updateItemAtPath(current, itemPath, (item) => ({
-        ...item,
-        children: [],
-      }));
-    });
-  }, []);
+  
 
   // Get selected item from path
   const getSelectedItem = useCallback((): GridItem | null => {
@@ -692,7 +631,7 @@ export function useGridEngine() {
     removeItem,
     pixelToGrid,
     selectItem,
-    initializeChildrenGrid,
+ 
   };
 }
 

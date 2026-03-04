@@ -1,32 +1,37 @@
-'use client';
+"use client";
 
-import React, { useRef, useEffect, useState } from 'react';
-import { GridItem as GridItemType } from '@/types/grid';
-import { ResizeDirection } from '@/hooks/useGridEngine';
-
+import React, { useRef, useEffect, useState } from "react";
+import { GridItem as GridItemType } from "@/types/grid";
+import { ResizeDirection } from "@/hooks/useGridEngine";
+import Icon from '@mdi/react';
+import { mdiDelete } from '@mdi/js';
 interface GridItemProps {
   item: GridItemType;
-  itemPath: string[];           // Path to this item
-  selectedItemPath: string[];   // Global selected path (for comparison)
-  isSelected?: boolean;         // Deprecated, computed from paths
+  itemPath: string[]; // Path to this item
+  selectedItemPath: string[]; // Global selected path (for comparison)
   onSelect: (path: string[]) => void;
-  onAddItem: (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[]) => void;
+  onAddItem: (
+    pixelX: number,
+    pixelY: number,
+    containerRect: DOMRect,
+    targetPath: string[],
+  ) => void;
   onResize: (
     path: string[],
     direction: ResizeDirection,
     deltaX: number,
     deltaY: number,
-    containerRect: DOMRect
+    containerRect: DOMRect,
   ) => void;
   onMove: (path: string[], col: number, row: number) => void;
   onRemove: (path: string[]) => void;
-  onInitializeChildren: (path: string[]) => void;
+
   containerRef: React.RefObject<HTMLDivElement | null>;
   columnCount: number;
   cellSize: number;
   rowHeight: number;
-  depth: number;                // Nesting depth
-  maxDepth?: number;            // Max nesting depth (default 10)
+  depth: number; // Nesting depth
+  maxDepth?: number; // Max nesting depth (default 10)
 }
 
 export function GridItem({
@@ -38,7 +43,7 @@ export function GridItem({
   onResize,
   onMove,
   onRemove,
-  onInitializeChildren,
+
   containerRef,
   columnCount,
   cellSize,
@@ -48,14 +53,16 @@ export function GridItem({
 }: GridItemProps) {
   // debug render tracing
   // eslint-disable-next-line no-console
-  console.log('GridItem render', item.id);
+  console.log("GridItem render", item.id);
 
-  // Determine if this item is selected by comparing paths
-  const isSelected = itemPath.length === selectedItemPath.length && 
-                     itemPath.every((id, i) => id === selectedItemPath[i]);
+  // Selection is determined by full path match to support deep nesting
+  const isSelected =
+    itemPath.length === selectedItemPath.length &&
+    itemPath.every((id, i) => id === selectedItemPath[i]);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDir, setResizeDir] = useState<ResizeDirection | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const resizeStateRef = useRef<{
     startX: number;
@@ -81,7 +88,12 @@ export function GridItem({
   const dragAccumulatorYRef = useRef(0);
 
   // initial rect snapshot to avoid initial jump
-  const initialRectRef = useRef({ colStart: item.colStart, colEnd: item.colEnd, rowStart: item.rowStart, rowEnd: item.rowEnd });
+  const initialRectRef = useRef({
+    colStart: item.colStart,
+    colEnd: item.colEnd,
+    rowStart: item.rowStart,
+    rowEnd: item.rowEnd,
+  });
 
   const rafIdRef = useRef<number | null>(null);
 
@@ -90,14 +102,24 @@ export function GridItem({
     if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
 
     rafIdRef.current = requestAnimationFrame(() => {
-      if (isResizing && resizeStateRef.current.direction && containerRef.current) {
+      // Resize logic: convert pointer delta to grid units,
+      // clamp within parent boundaries, and update immutably
+      if (
+        isResizing &&
+        resizeStateRef.current.direction &&
+        containerRef.current
+      ) {
         const dir = resizeStateRef.current.direction;
         const rect = containerRef.current.getBoundingClientRect();
         const localCellSize = rect.width / columnCount;
 
         // compute delta relative to initial pointer down
-        const deltaX = e.clientX - (resizeStateRef.current.lastX ?? resizeStateRef.current.startX);
-        const deltaY = e.clientY - (resizeStateRef.current.lastY ?? resizeStateRef.current.startY);
+        const deltaX =
+          e.clientX -
+          (resizeStateRef.current.lastX ?? resizeStateRef.current.startX);
+        const deltaY =
+          e.clientY -
+          (resizeStateRef.current.lastY ?? resizeStateRef.current.startY);
 
         // update last pointer so next call is incremental
         resizeStateRef.current.lastX = e.clientX;
@@ -108,7 +130,7 @@ export function GridItem({
         deltaAccumulatorYRef.current += deltaY;
 
         // horizontal snapping (unchanged)
-        if (['e', 'w', 'ne', 'nw', 'se', 'sw'].includes(dir)) {
+        if (["e", "w", "ne", "nw", "se", "sw"].includes(dir)) {
           while (Math.abs(deltaAccumulatorXRef.current) >= localCellSize) {
             const step = Math.sign(deltaAccumulatorXRef.current);
             const px = step * localCellSize;
@@ -118,7 +140,7 @@ export function GridItem({
         }
 
         // vertical snapping using engine rowHeight for proper conversion
-        if (['n', 's', 'ne', 'nw', 'se', 'sw'].includes(dir)) {
+        if (["n", "s", "ne", "nw", "se", "sw"].includes(dir)) {
           while (Math.abs(deltaAccumulatorYRef.current) >= localCellSize) {
             const step = Math.sign(deltaAccumulatorYRef.current);
             // compute pixel delta based on engine rowHeight so engine increments rows correctly
@@ -132,11 +154,15 @@ export function GridItem({
       }
 
       if (isDragging && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();    // for getting values relative to container and cell size for snapping
+        const rect = containerRef.current.getBoundingClientRect(); // for getting values relative to container and cell size for snapping
         const localCellSize = rect.width / columnCount;
 
-        const movementX = e.clientX - (dragStateRef.current.lastX ?? dragStateRef.current.startX);
-        const movementY = e.clientY - (dragStateRef.current.lastY ?? dragStateRef.current.startY);
+        const movementX =
+          e.clientX -
+          (dragStateRef.current.lastX ?? dragStateRef.current.startX);
+        const movementY =
+          e.clientY -
+          (dragStateRef.current.lastY ?? dragStateRef.current.startY);
         dragStateRef.current.lastX = e.clientX;
         dragStateRef.current.lastY = e.clientY;
 
@@ -146,7 +172,8 @@ export function GridItem({
         // horizontal snap steps -abs(abosolute) values ensure it works in all directions
         while (Math.abs(dragAccumulatorXRef.current) >= localCellSize) {
           const step = Math.sign(dragAccumulatorXRef.current);
-          const width = initialRectRef.current.colEnd - initialRectRef.current.colStart;
+          const width =
+            initialRectRef.current.colEnd - initialRectRef.current.colStart;
           const maxCol = columnCount - width;
           let newCol = initialRectRef.current.colStart + step;
           newCol = Math.max(0, Math.min(newCol, maxCol));
@@ -175,20 +202,37 @@ export function GridItem({
     setIsResizing(false);
     setResizeDir(null);
     setIsDragging(false);
-    document.removeEventListener('pointermove', handlePointerMove as EventListener);
-    document.removeEventListener('pointerup', handlePointerUp);
+    document.removeEventListener(
+      "pointermove",
+      handlePointerMove as EventListener,
+    );
+    document.removeEventListener("pointerup", handlePointerUp);
   };
 
   useEffect(() => {
     if (isResizing || isDragging) {
-      document.addEventListener('pointermove', handlePointerMove as EventListener);
-      document.addEventListener('pointerup', handlePointerUp);
+      document.addEventListener(
+        "pointermove",
+        handlePointerMove as EventListener,
+      );
+      document.addEventListener("pointerup", handlePointerUp);
       return () => {
-        document.removeEventListener('pointermove', handlePointerMove as EventListener);
-        document.removeEventListener('pointerup', handlePointerUp);
+        document.removeEventListener(
+          "pointermove",
+          handlePointerMove as EventListener,
+        );
+        document.removeEventListener("pointerup", handlePointerUp);
       };
     }
-  }, [isResizing, isDragging, itemPath, onResize, onMove, cellSize, containerRef]);
+  }, [
+    isResizing,
+    isDragging,
+    itemPath,
+    onResize,
+    onMove,
+    cellSize,
+    containerRef,
+  ]);
 
   const startResize = (dir: ResizeDirection) => (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -196,7 +240,12 @@ export function GridItem({
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
     // snapshot initial rect to avoid initial jump
-    initialRectRef.current = { colStart: item.colStart, colEnd: item.colEnd, rowStart: item.rowStart, rowEnd: item.rowEnd };
+    initialRectRef.current = {
+      colStart: item.colStart,
+      colEnd: item.colEnd,
+      rowStart: item.rowStart,
+      rowEnd: item.rowEnd,
+    };
 
     // reset accumulators
     deltaAccumulatorXRef.current = 0;
@@ -216,6 +265,8 @@ export function GridItem({
   };
 
   const handleDragStart = (e: React.PointerEvent) => {
+    // Initialize drag operation: capture container rect,
+    // compute local cell size, and store starting grid coordinates
     if (isResizing) return;
     onSelect(itemPath);
     e.stopPropagation();
@@ -229,7 +280,12 @@ export function GridItem({
     const offsetY = e.clientY - (rect.top + item.rowStart * localCellSize);
 
     // snapshot initial rect and reset accumulators
-    initialRectRef.current = { colStart: item.colStart, colEnd: item.colEnd, rowStart: item.rowStart, rowEnd: item.rowEnd };
+    initialRectRef.current = {
+      colStart: item.colStart,
+      colEnd: item.colEnd,
+      rowStart: item.rowStart,
+      rowEnd: item.rowEnd,
+    };
     dragAccumulatorXRef.current = 0;
     dragAccumulatorYRef.current = 0;
 
@@ -257,42 +313,42 @@ export function GridItem({
 
   return (
     <div
-      onClick={(e) => { e.stopPropagation(); onSelect(itemPath); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(itemPath);
+      }}
       onPointerDown={handleDragStart}
       style={{
         gridColumn: `${item.colStart + 1} / span ${width}`,
         gridRow: `${item.rowStart + 1} / span ${height}`,
       }}
       className={`relative border-2 rounded-lg p-4 transition-all touch-action-none overflow-hidden ${
-        isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        isDragging ? "cursor-grabbing" : "cursor-grab"
       } ${
         isSelected
-          ? 'border-blue-500 bg-blue-50 shadow-md z-20'
-          : 'border-gray-300 bg-white shadow-sm hover:shadow-md hover:border-gray-400'
-      } ${isDragging ? 'shadow-lg z-30' : 'z-0'}`}
+          ? "border-blue-500 bg-blue-50 shadow-md z-20"
+          : "border-gray-300 bg-white shadow-sm hover:shadow-md hover:border-gray-400"
+      } ${isDragging ? "shadow-lg z-30" : "z-0"}`}
     >
-      {/* Nested Grid (if children exist) */}
-      {item.children && depth < maxDepth && (
+      {/* Nested grid container: creates local grid context
+          Cell size derived from parent width for visual scaling */}
+      {depth < maxDepth && (
         <div
           ref={nestedRef}
           style={{
-            display: 'grid',
+            display: "grid",
             gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
             gridAutoRows: `${nestedCellSize}px`,
-            gap: '0',
-            width: '100%',
-            height: 'calc(100% - 2rem)',
-            backgroundImage:
-              'linear-gradient(to right, rgba(0,0,0,0.02) 1px, transparent 1px),' +
-              'linear-gradient(to bottom, rgba(0,0,0,0.02) 1px, transparent 1px)',
-            backgroundSize: `${nestedCellSize}px ${nestedCellSize}px`,
-            backgroundColor: 'rgba(100, 150, 200, 0.05)',
-            border: '1px dashed rgba(100, 150, 200, 0.3)',
-            borderRadius: '4px',
-            marginTop: '8px',
-            position: 'relative',
+            gap: "0",
+            width: "100%",
+            height: "calc(100% )",
+
+            marginTop: "8px",
+            position: "relative",
           }}
-          className="pointer-events-auto"
+          className={`pointer-events-auto transition-colors ${
+            isDragOver ? "bg-gray-300/60" : ""
+          }`}
           onClick={(e) => {
             if (e.currentTarget !== e.target) return;
             e.stopPropagation();
@@ -301,18 +357,29 @@ export function GridItem({
           onDragOver={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
+            e.dataTransfer.dropEffect = "copy";
+            setIsDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            e.stopPropagation();
+            setIsDragOver(false);
           }}
           onDrop={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            const data = e.dataTransfer.getData('text/plain');
-            if (data !== 'palette-item') return;
-            const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+            setIsDragOver(false);
+
+            const data = e.dataTransfer.getData("text/plain");
+            if (data !== "palette-item") return;
+
+            const rect = (
+              e.currentTarget as HTMLDivElement
+            ).getBoundingClientRect();
             onAddItem(e.clientX, e.clientY, rect, itemPath);
           }}
         >
-          {item.children.map((child) => (
+          {/* Render nested children recursively using path-based identification */}
+          {(item.children ?? []).map((child) => (
             <GridItem
               key={child.id}
               item={child}
@@ -323,7 +390,6 @@ export function GridItem({
               onResize={onResize}
               onMove={onMove}
               onRemove={onRemove}
-              onInitializeChildren={onInitializeChildren}
               containerRef={nestedRef}
               columnCount={columnCount}
               cellSize={nestedCellSize}
@@ -336,9 +402,11 @@ export function GridItem({
       )}
 
       {/* Item Label & Controls */}
-      <div className="absolute inset-0 p-4 flex flex-col pointer-events-none">
+      <div className="absolute inset-0 p-1 flex flex-col pointer-events-none">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-600">Item {item.id.slice(-6)}</span>
+          <span className="text-sm font-medium text-gray-600">
+            Item {item.id.slice(-3)}
+          </span>
           <button
             onPointerDown={(e: React.PointerEvent) => {
               e.stopPropagation();
@@ -347,79 +415,69 @@ export function GridItem({
                 containerRef.current?.releasePointerCapture?.(e.pointerId);
               } catch (_) {}
               try {
-                (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+                (e.currentTarget as HTMLElement).releasePointerCapture?.(
+                  e.pointerId,
+                );
               } catch (_) {}
               onRemove(itemPath);
             }}
-            className="text-xs text-red-500 hover:text-red-700 font-medium pointer-events-auto"
+            className={`text-xs pointer-events-auto ${
+              isSelected ? "text-red-900 block" : "hidden"
+            }`}
           >
-            ✕
+             <Icon path={mdiDelete} size={0.8} />
           </button>
         </div>
-        <div className="text-xs text-gray-500">
+        {/* <div className="text-xs text-gray-500">
           <div>Col: {item.colStart + 1} - {item.colEnd}</div>
           <div>Row: {item.rowStart + 1} - {item.rowEnd}</div>
           <div>Size: {width}×{height}</div>
-        </div>
+        </div>*/}
       </div>
-
-      {/* "Add Inside" Button (only when selected and no children yet, depth limit respected) */}
-      {isSelected && !item.children && depth < maxDepth && (
-        <button
-          onPointerDown={(e: React.PointerEvent) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onInitializeChildren(itemPath);
-          }}
-          className="absolute bottom-2 right-2 text-xs px-2 py-1 rounded bg-blue-500 text-white shadow hover:bg-blue-600 transition-colors pointer-events-auto"
-        >
-          Add Inside
-        </button>
-      )}
 
       {/* Resize handles - only show if selected and depth < maxDepth */}
       {isSelected && depth < maxDepth && (
         <>
           {/* Corner handles */}
           <div
-            onPointerDown={startResize('nw')}
+            onPointerDown={startResize("nw")}
             className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nwse-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
             title="Resize NW"
           />
           <div
-            onPointerDown={startResize('ne')}
+            onPointerDown={startResize("ne")}
             className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nesw-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
             title="Resize NE"
           />
           <div
-            onPointerDown={startResize('sw')}
+            onPointerDown={startResize("sw")}
             className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nesw-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
             title="Resize SW"
           />
           <div
-            onPointerDown={startResize('se')}
+            onPointerDown={startResize("se")}
             className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nwse-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
             title="Resize SE"
           />
 
           {/* Edge handles */}
           <div
-            onPointerDown={startResize('n')}
+            onPointerDown={startResize("n")}
             className="absolute -top-1.5 left-1/2 -translate-x-1/2 h-3 w-8 cursor-n-resize hover:bg-blue-500/20 pointer-events-auto touch-action-none"
             title="Resize N"
           />
           <div
-            onPointerDown={startResize('s')}
+            onPointerDown={startResize("s")}
             className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 h-3 w-8 cursor-s-resize hover:bg-blue-500/20 pointer-events-auto touch-action-none"
             title="Resize S"
           />
           <div
-            onPointerDown={startResize('w')}
+            onPointerDown={startResize("w")}
             className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 cursor-w-resize hover:bg-blue-500/20 pointer-events-auto touch-action-none"
             title="Resize W"
           />
           <div
-            onPointerDown={startResize('e')}
+            onPointerDown={startResize("e")}
             className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-8 cursor-e-resize hover:bg-blue-500/20 pointer-events-auto touch-action-none"
             title="Resize E"
           />
@@ -427,11 +485,9 @@ export function GridItem({
       )}
     </div>
   );
-
 }
 
 export default GridItem;
-
 
 /**
  * GridItem Component
