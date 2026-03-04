@@ -422,7 +422,7 @@ export function GridItem({
               onRemove(itemPath);
             }}
             className={`text-xs pointer-events-auto ${
-              isSelected ? "text-red-900 block" : "hidden"
+              isSelected ? "text-red-600 block" : "hidden"
             }`}
           >
              <Icon path={mdiDelete} size={0.8} />

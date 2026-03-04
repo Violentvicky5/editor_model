@@ -9,4 +9,4 @@ export type GridItem = {
 
 // we keep ROW_HEIGHT only as a default/fallback, actual height
 // is computed dynamically by the engine based on window width.
-export const ROW_HEIGHT = 40; // default pixels
+export const ROW_HEIGHT = 10; // default pixels

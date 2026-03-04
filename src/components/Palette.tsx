@@ -1,12 +1,12 @@
 'use client';
 
 const PALETTE_ITEMS = [
-  { id: 'card', label: 'Card', icon: '📋' },
-  { id: 'chart', label: 'Chart', icon: '📊' },
-  { id: 'table', label: 'Table', icon: '📑' },
-  { id: 'widget', label: 'Widget', icon: '🔧' },
-  { id: 'input', label: 'Input', icon: '✏️' },
-  { id: 'button', label: 'Button', icon: '🔘' },
+  { id: 'card', label: 'Card', },
+  { id: 'chart', label: 'Chart',},
+  { id: 'table', label: 'Table', },
+  { id: 'widget', label: 'Widget', },
+  { id: 'input', label: 'Input', },
+  { id: 'button', label: 'Button', },
 ];
 
 export function Palette() {
@@ -26,7 +26,7 @@ export function Palette() {
             onDragStart={handleDragStart}
             className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-move hover:bg-gray-100 hover:border-gray-300 transition-colors"
           >
-            <span className="text-xl">{item.icon}</span>
+           {/* <span className="text-xl">{item.icon}</span>*/}
             <div>
               <p className="font-medium text-gray-700">{item.label}</p>
               <p className="text-xs text-gray-500">Drag to grid</p>
@@ -35,11 +35,7 @@ export function Palette() {
         ))}
       </div>
 
-      <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-xs text-blue-700">
-          <strong>💡 Tip:</strong> Drag components onto the grid. Resize by dragging the corner handle.
-        </p>
-      </div>
+     
     </div>
   );
 }

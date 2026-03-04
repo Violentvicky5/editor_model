@@ -125,7 +125,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Right Sidebar Properties bound to active engine */}
+      {/* Right Sidebar Properties bound to active engine 
       <Sidebar
         selectedItem={viewMode === 'desktop' ? dSelectedItem : mSelectedItem}
         columnCount={activeColumnCount}
@@ -151,6 +151,7 @@ export default function Home() {
           }
         }}
       />
+      */}
     </div>
   );
 }
