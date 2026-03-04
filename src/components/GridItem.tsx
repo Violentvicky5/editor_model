@@ -428,11 +428,11 @@ export function GridItem({
              <Icon path={mdiDelete} size={0.8} />
           </button>
         </div>
-        {/* <div className="text-xs text-gray-500">
+         <div className="text-xs text-gray-500">
           <div>Col: {item.colStart + 1} - {item.colEnd}</div>
           <div>Row: {item.rowStart + 1} - {item.rowEnd}</div>
           <div>Size: {width}×{height}</div>
-        </div>*/}
+        </div>
       </div>
 
       {/* Resize handles - only show if selected and depth < maxDepth */}

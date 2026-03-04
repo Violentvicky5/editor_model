@@ -127,8 +127,175 @@ function deleteAtPath(layout: GridItem[], path: string[]): GridItem[] {
   });
 }
 
+// ============================================================================
+// Mobile Layout Transformer (derive mobile layout from desktop)
+// ============================================================================
+
+/**
+ * Transform desktop layout to mobile layout (vertical stack)
+ * - Sorts items by rowStart ASC, then colStart ASC
+ * - Ignores: colStart, colEnd, rowStart, rowEnd (grid positioning irrelevant)
+ * - Recursively transforms nested children
+ * - Preserves full hierarchy (no flattening)
+ * Returns new layout suitable for flex column rendering
+ */
+function transformToMobile(layout: GridItem[]): GridItem[] {
+  // Sort items by rowStart, then colStart for deterministic vertical stacking
+  const sorted = [...layout].sort((a, b) => {
+    if (a.rowStart !== b.rowStart) return a.rowStart - b.rowStart;
+    return a.colStart - b.colStart;
+  });
+
+  // Transform each item: keep id and children, ignore grid positioning
+  return sorted.map((item) => ({
+    id: item.id,
+    colStart: 0, // reset positioning (irrelevant in mobile)
+    colEnd: 1,
+    rowStart: 0,
+    rowEnd: 1,
+    children: item.children ? transformToMobile(item.children) : undefined,
+  }));
+}
+
+/**
+ * Helper: find and reorder item within a container by index
+ */
+function reorderItemInContainer(
+  container: GridItem[],
+  fromIndex: number,
+  toIndex: number
+): GridItem[] {
+  if (fromIndex < 0 || fromIndex >= container.length) return container;
+  if (toIndex < 0 || toIndex >= container.length) return container;
+  if (fromIndex === toIndex) return container;
+
+  const reordered = [...container];
+  const [item] = reordered.splice(fromIndex, 1);
+  reordered.splice(toIndex, 0, item);
+  return reordered;
+}
+
+/**
+ * Update mobile layout at a given path by reordering items
+ */
+function reorderMobileItemAtPath(
+  layout: GridItem[],
+  path: string[],
+  fromIndex: number,
+  toIndex: number
+): GridItem[] {
+  if (path.length === 0) {
+    // Reorder at root level
+    return reorderItemInContainer(layout, fromIndex, toIndex);
+  }
+
+  const itemId = path[0];
+  const restPath = path.slice(1);
+
+  return layout.map((item) => {
+    if (item.id !== itemId) return item;
+
+    if (restPath.length === 0) {
+      // Found the container, reorder its children
+      const reordered = reorderItemInContainer(
+        item.children || [],
+        fromIndex,
+        toIndex
+      );
+      return { ...item, children: reordered };
+    }
+
+    // Recurse deeper
+    return {
+      ...item,
+      children: item.children
+        ? reorderMobileItemAtPath(item.children, restPath, fromIndex, toIndex)
+        : undefined,
+    };
+  });
+}
+
+// ============================================================================
+// Mobile Layout Merge Strategy (for hybrid sync)
+// ============================================================================
+
+/**
+ * Intelligently merge desktop changes into mobile while preserving custom order
+ * 
+ * Rules:
+ * - Keep existing mobile items in their current order
+ * - Add new items from desktop that don't exist in mobile
+ * - Remove items that were deleted in desktop
+ * - Update nested structures recursively
+ * - Match items by IDs only
+ */
+function mergeDesktopIntoMobile(
+  desktopLayout: GridItem[],
+  mobileLayout: GridItem[]
+): GridItem[] {
+  // Build map of desktop items by ID for quick lookup
+  const desktopMap = new Map<string, GridItem>();
+  
+  const collectDesktopItems = (items: GridItem[]) => {
+    items.forEach((item) => {
+      desktopMap.set(item.id, item);
+      if (item.children) {
+        collectDesktopItems(item.children);
+      }
+    });
+  };
+  
+  collectDesktopItems(desktopLayout);
+
+  // Keep existing mobile items in their current order
+  // Remove if deleted from desktop, update children if they exist
+  const retained = mobileLayout
+    .map((mobileItem) => {
+      const desktopItem = desktopMap.get(mobileItem.id);
+      
+      if (!desktopItem) {
+        // Item was deleted in desktop, remove from mobile
+        return null;
+      }
+      
+      // Item exists in desktop - sync children recursively
+      const synced: GridItem = {
+        id: mobileItem.id,
+        colStart: 0,
+        colEnd: 1,
+        rowStart: 0,
+        rowEnd: 1,
+        children: mobileItem.children && desktopItem.children
+          ? mergeDesktopIntoMobile(desktopItem.children, mobileItem.children)
+          : desktopItem.children
+            ? transformToMobile(desktopItem.children)
+            : undefined,
+      };
+      
+      return synced;
+    })
+    .filter((item): item is GridItem => item !== null);
+
+  // Add new items from desktop that don't exist in mobile
+  const mobileIds = new Set(mobileLayout.map((item) => item.id));
+  const newItems = desktopLayout
+    .filter((item) => !mobileIds.has(item.id))
+    .map((item) => ({
+      id: item.id,
+      colStart: 0,
+      colEnd: 1,
+      rowStart: 0,
+      rowEnd: 1,
+      children: item.children ? transformToMobile(item.children) : undefined,
+    }));
+
+  return [...retained, ...newItems];
+}
+
 export function useGridEngine(initialColumnCount: number = COLUMN_COUNT) {
   const [layout, setLayout] = useState<GridItem[]>([]);
+  const [mobileLayout, setMobileLayout] = useState<GridItem[] | null>(null);
+  const [hasMobileCustomOrder, setHasMobileCustomOrder] = useState<boolean>(false);
   const [rowHeight, setRowHeight] = useState<number>(10);
   const [selectedItemPath, setSelectedItemPath] = useState<string[]>([]);
 
@@ -619,8 +786,55 @@ while (queue.length) {
     return findItemByPath(layout, selectedItemPath);
   }, [layout, selectedItemPath]);
 
+  // Initialize mobile layout from current desktop layout
+  // Called when user switches to mobile view for the first time
+  const initMobileLayout = useCallback(() => {
+    if (mobileLayout === null) {
+      const transformed = transformToMobile(layout);
+      setMobileLayout(transformed);
+      setHasMobileCustomOrder(false);
+    }
+  }, [layout, mobileLayout]);
+
+  // Reorder item in mobile layout only (independent from desktop)
+  // path: array of IDs to navigate to container level
+  // fromIndex, toIndex: indices within that container
+  const reorderMobileItem = useCallback(
+    (path: string[], fromIndex: number, toIndex: number) => {
+      setMobileLayout((current) => {
+        if (current === null) return null;
+        return reorderMobileItemAtPath(current, path, fromIndex, toIndex);
+      });
+      setHasMobileCustomOrder(true);
+    },
+    []
+  );
+
+  // Sync mobile layout when desktop layout changes
+  // Strategy:
+  // - If mobileLayout is null, do nothing (mobile not initialized yet)
+  // - If hasMobileCustomOrder is false, re-transform entire mobile from desktop
+  // - If hasMobileCustomOrder is true, intelligently merge desktop changes
+  useEffect(() => {
+    if (mobileLayout === null) {
+      // Mobile not initialized, no sync needed
+      return;
+    }
+
+    if (!hasMobileCustomOrder) {
+      // Mobile is clean (no custom reorder), re-transform from desktop
+      const transformed = transformToMobile(layout);
+      setMobileLayout(transformed);
+    } else {
+      // Mobile has custom order, merge smartly to preserve it
+      const merged = mergeDesktopIntoMobile(layout, mobileLayout);
+      setMobileLayout(merged);
+    }
+  }, [layout, hasMobileCustomOrder]); // Removed mobileLayout to prevent infinite loop
+
   return {
     layout,
+    mobileLayout,
     columnCount,
     rowHeight,
     selectedItemPath,
@@ -631,10 +845,10 @@ while (queue.length) {
     removeItem,
     pixelToGrid,
     selectItem,
- 
+    initMobileLayout,
+    reorderMobileItem,
   };
 }
-
 /**
  * useGridEngine Hook
  * ------------------
