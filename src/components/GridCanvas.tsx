@@ -58,6 +58,7 @@ export function GridCanvas({
     if (e.currentTarget !== e.target) return;
 
     e.preventDefault();
+    
 
     const data = e.dataTransfer.getData('text/plain');
     if (data !== 'palette-item') return;
@@ -95,7 +96,7 @@ export function GridCanvas({
   }
 
   return (
-    <div className='bg-gray-100   ' 
+    <div className='bg-gray-50 border border-gray-200 rounded  ' 
       ref={gridRef}
       onClick={handleGridClick}
       onDragOver={handleDragOver}
@@ -109,7 +110,6 @@ export function GridCanvas({
         minHeight: '100%',
         ...backgroundStyle,
       }}
-     
     >
       {layout.map((item) => (
         <GridItemComponent

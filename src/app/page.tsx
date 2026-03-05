@@ -8,8 +8,8 @@ import { Sidebar } from '@/components/Sidebar';
 import { useGridEngine } from '@/hooks/useGridEngine';
 import Icon from '@mdi/react';
 import { mdiMonitor, mdiCellphone } from '@mdi/js';
+import { ViewMode } from '@/types/grid';
 export default function Home() {
-  type ViewMode = 'desktop' | 'mobile';
   const [viewMode, setViewMode] = useState<ViewMode>('desktop');
 
   // Single desktop engine (source of truth)
@@ -46,7 +46,7 @@ export default function Home() {
       {/* Main Grid Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+        <div className="bg-white border-b border-gray-200 px-6 py-1 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-[14px] font-bold text-gray-800">EDITOR</h1>
@@ -54,7 +54,7 @@ export default function Home() {
                 {viewMode === 'desktop' ? (
                   <>Columns: <span className="font-semibold">{desktopColumnCount}</span></>
                 ) : (
-                  <>Mobile Stack (Full Width)</>
+                  <>Mobile view</>
                 )}
               </p>
             </div>
@@ -101,29 +101,70 @@ export default function Home() {
             />
           ) : (
             // compact iPhone preview
-            <div className="flex justify-center items-center w-full h-full p-2">
-              <div className="flex justify-center items-center h-full min-h-0">
-                <div className=" w-[386px] h-[675px] bg-olive-700 rounded-[38px] p-[3px] shadow-2xl relative overflow-hidden">
-                  {/* clean notch */}
-                  <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-[120px] h-[28px] bg-black rounded-[20px] z-10" />
-                  <div className="phone-scroll w-full h-full bg-white rounded-[34px] overflow-y-auto overflow-x-hidden p-3 box-border">
-                    {mobileLayout && (
-                      <MobileGridCanvas
-                        layout={mobileLayout}
-                        selectedItemPath={selectedItemPath}
-                        onSelectItem={selectItem}
-                        onReorderItem={reorderMobileItem}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
+           <div className="flex justify-center items-center w-full h-full p-6 bg-gray-100">
+
+  {/* iPhone Body */}
+  <div className="relative flex items-center justify-center">
+
+    {/* Metal Frame */}
+    <div className="relative w-[340px] h-[560px] rounded-[48px] bg-gradient-to-b from-gray-300 via-gray-500 to-gray-700 p-[6px] shadow-[0_35px_80px_rgba(0,0,0,0.45)]">
+
+      {/* Side Buttons */}
+      <div className="absolute -left-[4px] top-[120px] w-[3px] h-[40px] bg-gray-600 rounded-full"></div>
+      <div className="absolute -left-[4px] top-[170px] w-[3px] h-[60px] bg-gray-600 rounded-full"></div>
+      <div className="absolute -right-[4px] top-[150px] w-[3px] h-[80px] bg-gray-600 rounded-full"></div>
+
+      {/* Inner Black Bezel */}
+      <div className="relative w-full h-full bg-black rounded-[44px] p-[6px]">
+
+        {/* Screen Container */}
+        <div className="relative w-[320px] h-[525px] bg-white rounded-[36px] overflow-hidden">
+
+          {/* Notch */}
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-[120px] h-[26px] bg-black rounded-full flex items-center justify-center gap-2 z-20">
+
+            {/* Camera */}
+            <div className="w-[8px] h-[8px] bg-gray-800 rounded-full border border-gray-600"></div>
+
+            {/* Speaker */}
+            <div className="w-[40px] h-[4px] bg-gray-700 rounded-full"></div>
+
+          </div>
+
+          {/* Scrollable Screen */}
+          <div className="phone-scroll w-full h-full overflow-y-auto overflow-x-hidden p-4 pt-10">
+
+            {/* Header */}
+            <div className="w-full mb-4 px-4 py-3 text-lg font-semibold text-gray-700 bg-gray-100 border border-gray-200 rounded-xl shadow-sm text-center">
+              Mobile Preview
             </div>
+
+            {mobileLayout && (
+              <MobileGridCanvas
+                layout={mobileLayout}
+                selectedItemPath={selectedItemPath}
+                onSelectItem={selectItem}
+                onReorderItem={reorderMobileItem}
+              />
+            )}
+
+          </div>
+
+          {/* Home Indicator */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-[120px] h-[5px] bg-gray-300 rounded-full"></div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
           )}
         </div>
       </div>
 
-      {/* Right Sidebar Properties bound to desktop engine */}
+      {/* Right Sidebar Properties bound to desktop engine 
       {viewMode === 'desktop' && (
         <Sidebar
           selectedItem={selectedItem}
@@ -144,7 +185,7 @@ export default function Home() {
             }
           }}
         />
-      )}
+      )}*/}
     </div>
   );
 }

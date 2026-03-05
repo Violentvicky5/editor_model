@@ -75,40 +75,32 @@ export function MobileGridItem({
       draggable
       onDragStart={handleDragStart}
       className={`
-        w-full p-3 bg-white rounded-[14px] transition-shadow cursor-move
+        w-full p-2 bg-white rounded-[14px] transition-shadow cursor-move
         ${isSelected
-          ? 'border border-blue-300 shadow-md'
+          ? 'border border-blue-100 shadow-md'
           : 'border border-gray-200 hover:shadow-sm'}
       `}
     >
       {/* Item Header with Drag Handle */}
       <div className="flex items-center gap-2">
-        <div className="text-gray-400 flex-shrink-0">
-          <svg
-            className="w-5 h-5"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
-        </div>
+       
         <div className="text-sm font-semibold text-gray-700 truncate flex-1">
-          {item.id}
-        </div>
-        <div className="text-xs text-gray-400">
+  {item.id.slice(-3)}
+</div>
+        {/*<div className="text-xs text-gray-400">
           ID: {item.id.substring(0, 8)}
-        </div>
+        </div>*/}
       </div>
 
       {/* Nested Container */}
       {nestedItems && (
         <div
           ref={nestedContainerRef}
-          className="mt-3 p-3 bg-[#f9f9f9] border border-gray-200 rounded-[14px] flex flex-col gap-2"
+          className="mt-3  bg-[#f9f9f9] border border-gray-200 rounded-[14px] flex flex-col gap-2"
         >
-          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Nested Items ({item.children!.length})
-          </div>
+          {/*<div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Nested Items ({ item.children!.length})
+          </div>*/}
           <div className="flex flex-col gap-2">
             {item.children!.map((child, nestedIndex) => (
               <div
@@ -139,7 +131,7 @@ export function MobileGridItem({
       {/* Empty Content */}
       {!nestedItems && (
         <div className="text-xs text-gray-400 mt-2">
-          Content will render here
+          Content will render in this place
         </div>
       )}
     </div>

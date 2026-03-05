@@ -53,7 +53,7 @@ export function GridItem({
 }: GridItemProps) {
   // debug render tracing
   // eslint-disable-next-line no-console
-  console.log("GridItem render", item.id);
+  // console.log("GridItem render", item.id);
 
   // Selection is determined by full path match to support deep nesting
   const isSelected =
@@ -326,7 +326,7 @@ export function GridItem({
         isDragging ? "cursor-grabbing" : "cursor-grab"
       } ${
         isSelected
-          ? "border-blue-500 bg-blue-50 shadow-md z-20"
+          ? "border-blue-300 bg-blue-50 shadow-md z-20"
           : "border-gray-300 bg-white shadow-sm hover:shadow-md hover:border-gray-400"
       } ${isDragging ? "shadow-lg z-30" : "z-0"}`}
     >
@@ -404,7 +404,7 @@ export function GridItem({
       {/* Item Label & Controls */}
       <div className="absolute inset-0 p-1 flex flex-col pointer-events-none">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-600">
+          <span className="text-sm font-medium text-gray-300">
             Item {item.id.slice(-3)}
           </span>
           <button
@@ -422,17 +422,21 @@ export function GridItem({
               onRemove(itemPath);
             }}
             className={`text-xs pointer-events-auto ${
-              isSelected ? "text-red-600 block" : "hidden"
+              isSelected ? "text-gray-400 block hover:text-red-500" : "hidden"
             }`}
           >
              <Icon path={mdiDelete} size={0.8} />
           </button>
         </div>
+
+        {/*
          <div className="text-xs text-gray-500">
           <div>Col: {item.colStart + 1} - {item.colEnd}</div>
           <div>Row: {item.rowStart + 1} - {item.rowEnd}</div>
           <div>Size: {width}×{height}</div>
         </div>
+        */}
+        
       </div>
 
       {/* Resize handles - only show if selected and depth < maxDepth */}
@@ -441,22 +445,22 @@ export function GridItem({
           {/* Corner handles */}
           <div
             onPointerDown={startResize("nw")}
-            className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nwse-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
+            className="absolute -top-1 -left-1 w-3 h-3 bg-olive-300 rounded-sm cursor-nwse-resize hover:bg-olive-600 pointer-events-auto touch-action-none"
             title="Resize NW"
           />
           <div
             onPointerDown={startResize("ne")}
-            className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nesw-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
+            className="absolute -top-1 -right-1 w-3 h-3 bg-olive-300 rounded-sm cursor-nesw-resize hover:bg-olive-600 pointer-events-auto touch-action-none"
             title="Resize NE"
           />
           <div
             onPointerDown={startResize("sw")}
-            className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nesw-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
+            className="absolute -bottom-1 -left-1 w-3 h-3 bg-olive-300 rounded-sm cursor-nesw-resize hover:bg-olive-600 pointer-events-auto touch-action-none"
             title="Resize SW"
           />
           <div
             onPointerDown={startResize("se")}
-            className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-sm cursor-nwse-resize hover:bg-blue-600 pointer-events-auto touch-action-none"
+            className="absolute -bottom-1 -right-1 w-3 h-3 bg-olive-300 rounded-sm cursor-nwse-resize hover:bg-olive-600 pointer-events-auto touch-action-none"
             title="Resize SE"
           />
 

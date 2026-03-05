@@ -373,7 +373,7 @@ let iteration = 0;
 
 while (queue.length) {
   if (++iteration > maxIterations) {
-    console.warn("Vertical resolve aborted (safety guard)");
+    console.warn("Vertical resolve aborted ");
     break;
   }
 
@@ -488,7 +488,7 @@ let iteration = 0;
 
 while (queue.length) {
   if (++iteration > maxIterations) {
-    console.warn("Drag collision resolve aborted (safety guard)");
+    console.warn("Drag collision resolve aborted ");
     break;
   }
 
@@ -543,7 +543,7 @@ let iteration = 0;
 
 while (queue.length) {
   if (++iteration > maxIterations) {
-    console.warn("Vertical resize resolve aborted (safety guard)");
+    console.warn("Vertical resize resolve aborted ");
     break;
   }
 

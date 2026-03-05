@@ -1,18 +1,10 @@
-'use client';
-
-const PALETTE_ITEMS = [
-  { id: 'card', label: 'Card', },
-  { id: 'chart', label: 'Chart',},
-  { id: 'table', label: 'Table', },
-  { id: 'widget', label: 'Widget', },
-  { id: 'input', label: 'Input', },
-  { id: 'button', label: 'Button', },
-];
+"use client";
+import { PALETTE_ITEMS } from "../data/data";
 
 export function Palette() {
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('text/plain', 'palette-item');
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", "palette-item");
   };
 
   return (
@@ -26,7 +18,7 @@ export function Palette() {
             onDragStart={handleDragStart}
             className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-move hover:bg-gray-100 hover:border-gray-300 transition-colors"
           >
-           {/* <span className="text-xl">{item.icon}</span>*/}
+            {/* <span className="text-xl">{item.icon}</span>*/}
             <div>
               <p className="font-medium text-gray-700">{item.label}</p>
               <p className="text-xs text-gray-500">Drag to grid</p>
@@ -34,8 +26,6 @@ export function Palette() {
           </div>
         ))}
       </div>
-
-     
     </div>
   );
 }

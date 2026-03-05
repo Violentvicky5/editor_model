@@ -234,7 +234,7 @@ page.tsx
 ### Resizing Item (Desktop)
 
 1. User drags resize handle
-2. RAF-batched accumulator tracks movement
+2. RAF-batched accumulator tracks movement   
 3. When accumulated delta >= cellSize, dimension increments
 4. Direction-aware collision resolution shifts or wraps items
 5. setLayout updates grid positions
