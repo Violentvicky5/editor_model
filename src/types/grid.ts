@@ -1,4 +1,6 @@
+import { Palette } from '@/components/Palette';
 export type GridItem = {
+  label: string; // e.g. "card", "chart", etc.
   id: string;
   colStart: number;
   colEnd: number;
@@ -14,3 +16,16 @@ export const ROW_HEIGHT = 10; // default pixels
 
 //View modes
 export type ViewMode=`desktop`|`mobile`;
+
+
+
+export type PaletteItem ={
+name: string;
+label: string;
+}
+
+export type PaletteCategory = {
+id: string;
+label: string;
+items: PaletteItem[];
+}

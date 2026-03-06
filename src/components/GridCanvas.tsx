@@ -2,7 +2,7 @@
 
 import { useRef, useState, useLayoutEffect } from 'react';
 import { GridItem as GridItemComponent } from './GridItem';
-import type { GridItem } from '@/types/grid';
+import type { GridItem, PaletteItem } from '@/types/grid';
 import type { ResizeDirection } from '@/hooks/useGridEngine';
 
 interface GridCanvasProps {
@@ -11,7 +11,7 @@ interface GridCanvasProps {
   rowHeight: number;
   selectedItemPath: string[];
   onSelectItem: (path: string[]) => void;
-  onAddItem: (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[]) => void;
+  onAddItem: (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[], itemData: PaletteItem) => void;
   onMoveItem: (path: string[], col: number, row: number) => void;
   onResizeItem: (
     path: string[],
@@ -58,13 +58,15 @@ export function GridCanvas({
     if (e.currentTarget !== e.target) return;
 
     e.preventDefault();
-    
 
     const data = e.dataTransfer.getData('text/plain');
-    if (data !== 'palette-item') return;
+    // if (data !== 'palette-item') return;
+const itemData: PaletteItem = JSON.parse(data);
+
+console.log("Drop event data:", {itemData });
 
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    onAddItem(e.clientX, e.clientY, rect, []);
+    onAddItem(e.clientX, e.clientY, rect, [],itemData);
   };
 
   // Single grid background pattern with square cells
@@ -96,7 +98,7 @@ export function GridCanvas({
   }
 
   return (
-    <div className='bg-gray-50 border border-gray-200 rounded  ' 
+    <div className='bg-gray-50 border border-gray-300 rounded ' 
       ref={gridRef}
       onClick={handleGridClick}
       onDragOver={handleDragOver}
@@ -110,9 +112,11 @@ export function GridCanvas({
         minHeight: '100%',
         ...backgroundStyle,
       }}
+     
     >
       {layout.map((item) => (
         <GridItemComponent
+
           key={item.id}
           item={item}
           itemPath={[item.id]}

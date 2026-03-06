@@ -107,18 +107,18 @@ export default function Home() {
   <div className="relative flex items-center justify-center">
 
     {/* Metal Frame */}
-    <div className="relative w-[340px] h-[560px] rounded-[48px] bg-gradient-to-b from-gray-300 via-gray-500 to-gray-700 p-[6px] shadow-[0_35px_80px_rgba(0,0,0,0.45)]">
+    <div className="relativew-full max-w-[340px] aspect-[340/560] rounded-[48px] bg-gradient-to-b from-gray-300 via-gray-500 to-gray-700 p-[6px] shadow-[0_35px_80px_rgba(0,0,0,0.45)]">
 
       {/* Side Buttons */}
-      <div className="absolute -left-[4px] top-[120px] w-[3px] h-[40px] bg-gray-600 rounded-full"></div>
-      <div className="absolute -left-[4px] top-[170px] w-[3px] h-[60px] bg-gray-600 rounded-full"></div>
-      <div className="absolute -right-[4px] top-[150px] w-[3px] h-[80px] bg-gray-600 rounded-full"></div>
+      <div className="absolute left-[4px] top-[120px] w-[3px] h-[40px] bg-gray-600 rounded-full"></div>
+      <div className="absolute left-[4px] top-[170px] w-[3px] h-[60px] bg-gray-600 rounded-full"></div>
+      <div className="absolute right-[4px] top-[150px] w-[3px] h-[80px] bg-gray-600 rounded-full"></div>
 
       {/* Inner Black Bezel */}
       <div className="relative w-full h-full bg-black rounded-[44px] p-[6px]">
 
         {/* Screen Container */}
-        <div className="relative w-[320px] h-[525px] bg-white rounded-[36px] overflow-hidden">
+        <div className="relative w-full h-full bg-white rounded-[36px] overflow-hidden">
 
           {/* Notch */}
           <div className="absolute top-1 left-1/2 -translate-x-1/2 w-[120px] h-[26px] bg-black rounded-full flex items-center justify-center gap-2 z-20">

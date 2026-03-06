@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { GridItem } from '@/types/grid';
+import { GridItem, PaletteItem } from '@/types/grid';
 
 const DEFAULT_ITEM_WIDTH = 10; // columns
 const DEFAULT_ITEM_HEIGHT = 10; // rows
@@ -149,6 +149,7 @@ function transformToMobile(layout: GridItem[]): GridItem[] {
   // Transform each item: keep id and children, ignore grid positioning
   return sorted.map((item) => ({
     id: item.id,
+    label: item.label,
     colStart: 0, // reset positioning (irrelevant in mobile)
     colEnd: 1,
     rowStart: 0,
@@ -261,6 +262,7 @@ function mergeDesktopIntoMobile(
       // Item exists in desktop - sync children recursively
       const synced: GridItem = {
         id: mobileItem.id,
+        label: mobileItem.label, // keep mobile label (could be customized)
         colStart: 0,
         colEnd: 1,
         rowStart: 0,
@@ -282,6 +284,7 @@ function mergeDesktopIntoMobile(
     .filter((item) => !mobileIds.has(item.id))
     .map((item) => ({
       id: item.id,
+      label: item.label,
       colStart: 0,
       colEnd: 1,
       rowStart: 0,
@@ -373,7 +376,7 @@ let iteration = 0;
 
 while (queue.length) {
   if (++iteration > maxIterations) {
-    console.warn("Vertical resolve aborted ");
+    console.warn("Vertical resolve aborted (safety guard)");
     break;
   }
 
@@ -488,7 +491,7 @@ let iteration = 0;
 
 while (queue.length) {
   if (++iteration > maxIterations) {
-    console.warn("Drag collision resolve aborted ");
+    console.warn("Drag collision resolve aborted (safety guard)");
     break;
   }
 
@@ -543,7 +546,7 @@ let iteration = 0;
 
 while (queue.length) {
   if (++iteration > maxIterations) {
-    console.warn("Vertical resize resolve aborted ");
+    console.warn("Vertical resize resolve aborted (safety guard)");
     break;
   }
 
@@ -601,13 +604,15 @@ while (queue.length) {
 
   // add new item from palette drop with path support
   const addItem = useCallback(
-    (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[] = []) => {
+    (pixelX: number, pixelY: number, containerRect: DOMRect, targetPath: string[],itemData: PaletteItem,) => {
+      console.log("itemData in addItem:", { itemData });
       const { colStart, rowStart } = pixelToGrid(pixelX, pixelY, containerRect);
       const colEnd = Math.min(colStart + DEFAULT_ITEM_WIDTH, columnCount);
       const rowEnd = rowStart + DEFAULT_ITEM_HEIGHT;
 
       const newItem: GridItem = {
         id: `item-${Date.now()}`,
+        label: itemData.label,
         colStart,
         colEnd,
         rowStart,

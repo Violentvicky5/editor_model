@@ -5,7 +5,9 @@ import { GridItem as GridItemType } from "@/types/grid";
 import { ResizeDirection } from "@/hooks/useGridEngine";
 import Icon from '@mdi/react';
 import { mdiDelete } from '@mdi/js';
+import {PaletteItem} from "@/types/grid";
 interface GridItemProps {
+  
   item: GridItemType;
   itemPath: string[]; // Path to this item
   selectedItemPath: string[]; // Global selected path (for comparison)
@@ -15,6 +17,7 @@ interface GridItemProps {
     pixelY: number,
     containerRect: DOMRect,
     targetPath: string[],
+    itemData: PaletteItem,
   ) => void;
   onResize: (
     path: string[],
@@ -327,7 +330,7 @@ export function GridItem({
       } ${
         isSelected
           ? "border-blue-300 bg-blue-50 shadow-md z-20"
-          : "border-gray-300 bg-white shadow-sm hover:shadow-md hover:border-gray-400"
+          : "border-gray-400 bg-white shadow-sm hover:shadow-md hover:border-gray-700"
       } ${isDragging ? "shadow-lg z-30" : "z-0"}`}
     >
       {/* Nested grid container: creates local grid context
@@ -370,12 +373,12 @@ export function GridItem({
             setIsDragOver(false);
 
             const data = e.dataTransfer.getData("text/plain");
-            if (data !== "palette-item") return;
-
+            // if (data !== "palette-item") return;
+            const itemData = JSON.parse(data);
             const rect = (
               e.currentTarget as HTMLDivElement
             ).getBoundingClientRect();
-            onAddItem(e.clientX, e.clientY, rect, itemPath);
+            onAddItem(e.clientX, e.clientY, rect, itemPath, itemData);
           }}
         >
           {/* Render nested children recursively using path-based identification */}
@@ -406,6 +409,9 @@ export function GridItem({
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-300">
             Item {item.id.slice(-3)}
+          </span>
+          <span className="text-xs text-gray-500">
+            {item.label}
           </span>
           <button
             onPointerDown={(e: React.PointerEvent) => {

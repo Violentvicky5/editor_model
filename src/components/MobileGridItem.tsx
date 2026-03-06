@@ -86,6 +86,9 @@ export function MobileGridItem({
        
         <div className="text-sm font-semibold text-gray-700 truncate flex-1">
   {item.id.slice(-3)}
+  <span className="text-xs text-gray-400 ml-2">
+    {item.label}
+  </span>
 </div>
         {/*<div className="text-xs text-gray-400">
           ID: {item.id.substring(0, 8)}
